@@ -1,0 +1,1182 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Generosopoly - El Juego de la Generosidad</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+:root{--bg:#0d1b0e;--board:#f5f0e1;--board-border:#8b6914;--text-dark:#2d1810;--sidebar:#132415;--accent:#d4a017;--card:#1e3520;--border:#2a4a2d;--muted:#7a9a7e}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:#e0e0d0;overflow-x:hidden;min-height:100vh}
+h1,h2,h3,.fredoka{font-family:'Fredoka',sans-serif}
+#lobby{min-height:100vh;display:flex;align-items:center;justify-content:center;position:relative;overflow-y:auto}
+#lobby::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 30% 20%,rgba(42,157,143,.15),transparent 60%),radial-gradient(ellipse at 70% 80%,rgba(212,160,23,.1),transparent 60%);z-index:0}
+.lobby-card{background:rgba(19,36,21,.97);border:1px solid var(--border);border-radius:20px;padding:36px;max-width:540px;width:92%;position:relative;z-index:1;backdrop-filter:blur(20px);margin:20px 0}
+.lobby-card h1{font-size:2.6rem;font-weight:700;background:linear-gradient(135deg,var(--accent),#2a9d8f);-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-align:center;line-height:1.1}
+.input-field{width:100%;padding:12px 16px;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:10px;color:#e0e0d0;font-size:15px;font-family:inherit;outline:none;transition:.2s}
+.input-field:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(212,160,23,.15)}
+.btn{padding:12px 24px;border:none;border-radius:10px;font-family:inherit;font-weight:600;font-size:15px;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:8px}
+.btn-primary{background:linear-gradient(135deg,var(--accent),#c49512);color:#1a1a0a;box-shadow:0 4px 15px rgba(212,160,23,.3)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(212,160,23,.4)}
+.btn-primary:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.btn-secondary{background:rgba(255,255,255,.08);color:#e0e0d0;border:1px solid var(--border)}
+.btn-secondary:hover{background:rgba(255,255,255,.12)}
+.btn-danger{background:linear-gradient(135deg,#c0392b,#96281b);color:#fff}
+.btn-success{background:linear-gradient(135deg,#27ae60,#1e8449);color:#fff}
+.tab-btn{padding:10px 20px;border:none;background:transparent;color:var(--muted);font-family:inherit;font-weight:600;font-size:14px;cursor:pointer;border-bottom:2px solid transparent;transition:.2s}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+.room-code{font-family:'Fredoka',sans-serif;font-size:2.5rem;font-weight:700;color:var(--accent);letter-spacing:8px;text-align:center;padding:16px;background:rgba(212,160,23,.08);border:2px dashed rgba(212,160,23,.3);border-radius:12px}
+#game{display:none;height:100vh;gap:0}
+#game.active{display:flex}
+#board-wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:6px;min-width:0;position:relative}
+#board{display:grid;grid-template-columns:1.65fr repeat(9,1fr) 1.65fr;grid-template-rows:1.65fr repeat(9,1fr) 1.65fr;width:min(97vh,calc(100vw - 298px));height:min(97vh,calc(100vw - 298px));background:var(--board);border:3px solid var(--board-border);border-radius:8px;box-shadow:0 0 40px rgba(139,105,20,.2),inset 0 0 60px rgba(139,105,20,.05);overflow:hidden;position:relative}
+/* ── CASILLAS DEL TABLERO ─────────────────────────────────────────── */
+.space{
+  border:0.5px solid rgba(45,24,16,.14);
+  position:relative;
+  overflow:hidden;
+  color:var(--text-dark);
+  background:var(--board);
+}
+/* Casillas de fila horizontal (top / bottom): apiladas verticalmente */
+.space.bottom,.space.top{
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:flex-end;
+  padding:0 1px 2px;
+  text-align:center;
+}
+.space.bottom{flex-direction:column-reverse;justify-content:flex-end;padding:2px 1px 0;}
+/* Casillas de columna vertical (left / right): apiladas en fila horizontal */
+.space.left,.space.right{
+  display:flex;flex-direction:row;
+  align-items:stretch;
+}
+/* La banda de color */
+.space .cb{flex-shrink:0;background:currentColor;}
+/* top/bottom: banda horizontal en el borde exterior */
+.space.top    .cb{position:absolute;bottom:0;left:0;right:0;height:22%;}
+.space.bottom .cb{position:absolute;top:0;   left:0;right:0;height:22%;}
+/* left/right: banda vertical en el borde exterior */
+.space.right .cb{order:0;width:22%;}
+.space.left  .cb{order:2;width:22%;}
+/* El cuerpo de texto (nombre + precio) */
+.space .sb{
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  flex:1;min-width:0;
+  gap:1px;
+  overflow:hidden;
+}
+/* Para columnas: girar el bloque de texto */
+.space.right .sb{order:1;writing-mode:vertical-lr;transform:rotate(180deg);padding:3px 0;}
+.space.left  .sb{order:0;writing-mode:vertical-lr;padding:3px 0;}
+/* Nombre */
+.space .sn{
+  font-weight:700;
+  line-height:1.1;
+  text-align:center;
+  overflow:hidden;
+  display:-webkit-box;
+  -webkit-line-clamp:3;
+  -webkit-box-orient:vertical;
+  word-break:break-word;
+  hyphens:auto;
+}
+/* Precio */
+.space .sp{
+  font-weight:800;
+  color:#5a3a10;
+  white-space:nowrap;
+  flex-shrink:0;
+}
+/* Ícono en casillas especiales */
+.space .si{flex-shrink:0;line-height:1;}
+/* Colores de fondo de casillas especiales */
+.space.go       {background:rgba(39,174,96,.10);}
+.space.jail     {background:rgba(100,100,120,.08);}
+.space.reflexion{background:rgba(231,111,81,.07);}
+.space.servicio {background:rgba(155,89,182,.06);}
+.space.gotojail {background:rgba(192,57,43,.08);}
+.space.tax      {background:rgba(192,57,43,.05);}
+.space.cofre    {background:rgba(42,157,143,.05);}
+.space.falta    {background:rgba(230,57,70,.04);}
+/* Esquinas */
+.space.corner{
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  gap:3px;text-align:center;padding:4px;
+}
+.space.corner .sn{font-size:clamp(7px,0.9vw,11px);font-weight:700;-webkit-line-clamp:2;}
+.board-center{grid-row:2/11;grid-column:2/11;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,rgba(42,157,143,.06),rgba(212,160,23,.06));border:1px solid rgba(45,24,16,.08);gap:8px;padding:10px}
+.board-center h2{font-family:'Fredoka',sans-serif;font-size:clamp(18px,3vw,36px);font-weight:700;color:var(--text-dark);text-align:center}
+.board-center .fund-box{background:rgba(212,160,23,.15);padding:8px 18px;border-radius:10px;border:1px solid rgba(212,160,23,.3);font-weight:600;color:#5a3a10;font-size:clamp(10px,1.4vw,15px)}
+#rules-btn-center{margin-top:6px;background:rgba(45,24,16,.08);border:1px solid rgba(45,24,16,.15);color:var(--text-dark);padding:5px 12px;border-radius:6px;font-size:clamp(8px,1vw,11px);cursor:pointer;font-family:inherit;font-weight:500;transition:.2s}
+#rules-btn-center:hover{background:rgba(45,24,16,.15)}
+.token{position:absolute;width:clamp(14px,2vw,22px);height:clamp(14px,2vw,22px);border-radius:50%;border:2.5px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.5);z-index:10;display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;pointer-events:none;font-size:clamp(6px,0.9vw,10px)}
+.token.active-token{animation:tokenPulse 1.5s infinite}
+@keyframes tokenPulse{0%,100%{box-shadow:0 2px 8px rgba(0,0,0,.5)}50%{box-shadow:0 0 16px 5px var(--accent)}}
+#sidebar{width:298px;min-width:298px;background:var(--sidebar);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+/* ── VOLUNTARIOS / ONG en casilla ── */
+.vols{display:flex;gap:2px;justify-content:center;flex-wrap:wrap;margin-top:2px;z-index:2;position:relative}
+.vol-pip{width:7px;height:7px;border-radius:50%;background:#27ae60;border:1px solid rgba(0,0,0,.2);flex-shrink:0}
+.vol-pip.ong{background:var(--accent);border-radius:2px;}
+/* ── PANEL DE PROPIEDADES ── */
+.prop-panel{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1500;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.prop-panel-inner{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px;max-width:480px;width:92%;max-height:88vh;overflow-y:auto}
+.prop-panel-inner h2{font-family:'Fredoka',sans-serif;font-size:20px;color:var(--accent);margin-bottom:16px}
+.prop-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;margin-bottom:6px;background:rgba(255,255,255,.04);border:1px solid var(--border)}
+.prop-item .pi-color{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+.prop-item .pi-name{flex:1;font-size:13px;font-weight:600;color:#e0e0d0}
+.prop-item .pi-price{font-size:12px;color:var(--muted)}
+.prop-item .pi-vols{display:flex;gap:3px;align-items:center}
+.prop-item .pi-vols .vp{width:9px;height:9px;border-radius:50%;background:#27ae60;border:1px solid rgba(255,255,255,.2)}
+.prop-item .pi-vols .vp.ong{background:var(--accent);border-radius:2px}
+.prop-item .pi-buy-vol{background:rgba(39,174,96,.15);border:1px solid rgba(39,174,96,.3);color:#27ae60;padding:3px 8px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap}
+.prop-item .pi-buy-vol:hover{background:rgba(39,174,96,.25)}
+.prop-item .pi-buy-vol:disabled{opacity:.35;cursor:not-allowed}
+/* prop-dots en sidebar más visibles */
+.props-mini{display:flex;flex-wrap:wrap;gap:2px;margin-top:3px}
+.prop-dot{width:11px;height:11px;border-radius:2px;border:1.5px solid rgba(255,255,255,.25);cursor:pointer}
+.prop-dot:hover{transform:scale(1.3)}
+.sb-section{padding:12px 16px;border-bottom:1px solid var(--border)}
+.sb-section h3{font-family:'Fredoka',sans-serif;font-size:12px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.dice-area{display:flex;gap:16px;justify-content:center;align-items:center;padding:8px 0}
+.die{width:52px;height:52px;background:#fff;border-radius:10px;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);padding:7px;box-shadow:0 3px 12px rgba(0,0,0,.3)}
+.die.rolling{animation:diceRoll .5s ease-out}
+@keyframes diceRoll{0%{transform:rotate(0) scale(1)}25%{transform:rotate(90deg) scale(1.1)}50%{transform:rotate(180deg) scale(.95)}75%{transform:rotate(270deg) scale(1.05)}100%{transform:rotate(360deg) scale(1)}}
+.dot{width:100%;aspect-ratio:1;background:#2d1810;border-radius:50%}
+.player-row{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;margin-bottom:4px;font-size:13px;transition:.2s}
+.player-row.current{background:rgba(212,160,23,.12);border:1px solid rgba(212,160,23,.3)}
+.player-row.eliminated{opacity:.35;text-decoration:line-through}
+.player-dot{width:14px;height:14px;border-radius:50%;flex-shrink:0;border:2px solid rgba(255,255,255,.3)}
+.player-money{margin-left:auto;font-weight:700;color:var(--accent);font-size:14px}
+#log{flex:1;overflow-y:auto;padding:8px 16px;font-size:12px;line-height:1.5;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+#log::-webkit-scrollbar{width:4px}#log::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.log-entry{padding:3px 0;border-bottom:1px solid rgba(255,255,255,.03);color:var(--muted)}
+.log-entry.important{color:var(--accent)}
+.action-btns{display:flex;flex-wrap:wrap;gap:6px;padding:8px 0}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:1000;backdrop-filter:blur(4px);opacity:0;pointer-events:none;transition:.3s}
+.modal-overlay.active{opacity:1;pointer-events:all}
+.modal{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:28px;max-width:500px;width:92%;text-align:center;transform:scale(.9);transition:.3s;max-height:90vh;overflow-y:auto}
+.modal-overlay.active .modal{transform:scale(1)}
+.modal h2{font-family:'Fredoka',sans-serif;font-size:22px;margin-bottom:12px;color:var(--accent)}
+.modal p{font-size:14px;line-height:1.6;color:#c0c0b0;margin-bottom:16px}
+.card-display{border:2px solid rgba(212,160,23,.3);border-radius:12px;padding:20px;margin:16px 0}
+.card-display.cofre{background:linear-gradient(135deg,rgba(42,157,143,.15),rgba(212,160,23,.1))}
+.card-display.falta{background:linear-gradient(135deg,rgba(192,57,43,.15),rgba(231,111,81,.1));border-color:rgba(192,57,43,.3)}
+.card-display .card-icon{font-size:36px;margin-bottom:10px}
+.card-display .card-title{font-family:'Fredoka',sans-serif;font-size:17px;font-weight:700;margin-bottom:8px;color:#e0e0d0}
+.card-display .card-text{font-size:14px;line-height:1.6;color:#c0c0b0}
+.card-display .card-effect{font-size:15px;font-weight:700;margin-top:12px;padding:8px 16px;background:rgba(212,160,23,.15);border-radius:8px;color:var(--accent)}
+.timer-display{font-family:'Fredoka',sans-serif;font-size:20px;font-weight:700;color:var(--accent);text-align:center}
+.props-mini{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px}
+.prop-dot{width:10px;height:10px;border-radius:2px;border:1px solid rgba(255,255,255,.2)}
+.waiting-msg{text-align:center;padding:20px;color:var(--muted);font-size:14px}
+.waiting-msg i{font-size:24px;display:block;margin-bottom:8px;animation:spin 2s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-20px);background:var(--card);border:2px solid var(--accent);color:#e0e0d0;padding:14px 28px;border-radius:12px;font-size:15px;font-weight:600;z-index:2000;opacity:0;transition:all .4s;pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast i{margin-right:8px}
+.auction-bid{display:flex;align-items:center;gap:8px;justify-content:center;margin:12px 0}
+.auction-bid span{font-size:24px;font-weight:700;color:var(--accent);font-family:'Fredoka',sans-serif}
+.end-results{text-align:left}
+.end-results .rank{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;margin-bottom:6px;font-weight:600}
+.end-results .rank.first{background:rgba(212,160,23,.2);border:1px solid rgba(212,160,23,.4)}
+.end-results .rank .rank-num{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;background:var(--border);color:var(--accent)}
+.end-results .rank.first .rank-num{background:var(--accent);color:#1a1a0a}
+.rules-content{text-align:left;font-size:13px;line-height:1.7;color:#c0c0b0;max-height:60vh;overflow-y:auto;padding-right:8px}
+.rules-content h3{color:var(--accent);font-family:'Fredoka',sans-serif;font-size:15px;margin:14px 0 6px}
+.rules-content h3:first-child{margin-top:0}
+.rules-content ul{padding-left:18px;margin:4px 0}
+.rules-content li{margin:3px 0}
+.rules-content strong{color:#e0e0d0}
+#rules-side-btn{position:absolute;top:8px;right:8px;background:rgba(255,255,255,.08);border:1px solid var(--border);color:var(--muted);width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12px;transition:.2s;z-index:5}
+#rules-side-btn:hover{background:rgba(255,255,255,.15);color:var(--accent)}
+.reflection-question{background:rgba(231,111,81,.1);border:1px solid rgba(231,111,81,.3);border-radius:10px;padding:14px;margin:12px 0;font-size:14px;line-height:1.6;color:#e0e0d0;font-style:italic}
+.reflection-question::before{content:'"';font-size:24px;color:#e76f51;line-height:0;vertical-align:-8px;margin-right:4px}
+@media(max-width:900px){#game.active{flex-direction:column;overflow-y:auto;height:auto;min-height:100vh}#sidebar{width:100%;min-width:0;max-height:none}#board{width:min(96vw,92vh);height:min(96vw,92vh)}}
+</style>
+</head>
+<body>
+
+<div id="lobby">
+<div class="lobby-card">
+<h1 class="fredoka" style="margin-bottom:4px">GENEROSOPOLY</h1>
+<p style="text-align:center;color:var(--muted);margin-bottom:24px;font-size:14px">El Juego de la Generosidad · Beth Shalom</p>
+<div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:20px">
+<button class="tab-btn active" onclick="switchTab('create',this)">Crear Sala</button>
+<button class="tab-btn" onclick="switchTab('join',this)">Unirse</button>
+</div>
+<div id="tab-create">
+<div style="margin-bottom:12px"><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Tu nombre</label><input class="input-field" id="host-name" placeholder="Ej: Maria" maxlength="12"></div>
+<div style="margin-bottom:12px"><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Condición de fin</label>
+<select class="input-field" id="end-cond">
+<option value="timer-20">Tiempo: 20 minutos</option>
+<option value="timer-30" selected>Tiempo: 30 minutos</option>
+<option value="laps-3">Vueltas: 3 por jugador</option>
+<option value="laps-5">Vueltas: 5 por jugador</option>
+</select></div>
+<button class="btn btn-primary" style="width:100%" onclick="createRoom()" id="btn-create"><i class="fas fa-plus"></i> Crear Sala</button>
+<div id="room-info" style="display:none;margin-top:20px;text-align:center">
+<p style="font-size:12px;color:var(--muted);margin-bottom:8px">Código de sala:</p>
+<div class="room-code" id="room-code-display"></div>
+<div style="margin-top:16px" id="player-list-host"></div>
+<button class="btn btn-success" style="width:100%;margin-top:16px" onclick="startGame()" id="btn-start" disabled><i class="fas fa-play"></i> Iniciar Juego (mín. 2)</button>
+</div>
+</div>
+<div id="tab-join" style="display:none">
+<div style="margin-bottom:12px"><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Tu nombre</label><input class="input-field" id="join-name" placeholder="Ej: Carlos" maxlength="12"></div>
+<div style="margin-bottom:12px"><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Código de sala</label><input class="input-field" id="join-code" placeholder="Ej: AB3K" maxlength="6" style="text-transform:uppercase;letter-spacing:4px;font-weight:700;font-size:18px;text-align:center"></div>
+<button class="btn btn-primary" style="width:100%" onclick="joinRoom()" id="btn-join"><i class="fas fa-sign-in-alt"></i> Unirse</button>
+<div id="join-status" style="margin-top:12px;text-align:center;font-size:13px;color:var(--muted)"></div>
+</div>
+</div>
+</div>
+
+<div id="game">
+<div id="board-wrap">
+<button id="rules-side-btn" onclick="showRules()"><i class="fas fa-book"></i></button>
+<div id="board"></div>
+</div>
+<div id="sidebar">
+<div class="sb-section" id="sb-timer" style="display:none"><div class="timer-display" id="timer-text">30:00</div></div>
+<div class="sb-section"><h3><i class="fas fa-dice"></i> Dados</h3><div class="dice-area"><div class="die" id="die1"></div><div class="die" id="die2"></div></div><div id="dice-result" style="text-align:center;font-size:12px;color:var(--muted);min-height:16px"></div></div>
+<div class="sb-section"><h3><i class="fas fa-hand-pointer"></i> Acción</h3><div id="action-content"><div class="waiting-msg"><i class="fas fa-hourglass-half"></i>Espere su turno...</div></div></div>
+<div class="sb-section"><h3><i class="fas fa-users"></i> Jugadores</h3><div id="players-list"></div></div>
+<div class="sb-section"><h3><i class="fas fa-hand-holding-heart"></i> Fondo Comunitario</h3><div style="text-align:center;font-size:20px;font-weight:700;color:var(--accent);font-family:'Fredoka',sans-serif" id="fund-display">$0</div></div>
+<div id="log"></div>
+</div>
+</div>
+
+<div class="modal-overlay" id="modal"><div class="modal" id="modal-content"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+"use strict";
+
+var INIT_MONEY = 2500;
+
+// ── TABLERO REAL (basado en el tablero físico) ──────────────────────────────
+// Grupos de color por fila (como en el tablero impreso)
+// G0=naranja(Tutorias+Taller), G1=rosado(Adult.May/Comedor/Huerto/Parque), 
+// G2=azul oscuro(Consumo/C.Lim), G3=cyan(Fauna/Empren/Inclusion),
+// G4=verde(Campaña/Jornada), G5=café(Mentorias/Intercambio),
+// G6=rojo oscuro(Yoga/Deporte), G7=mixto premium
+
+var BOARD=[
+  {id:0,  name:"Punto de Partida de la Generosidad", short:"PARTIDA",   type:"go",      icon:"fa-heart"},
+  {id:1,  name:"Tutorías Voluntarias",               short:"Tutorías",  type:"property", price:350, aporte:100, group:0},
+  {id:2,  name:"Cofre Comunitario",                  short:"COFRE",     type:"cofre",    icon:"fa-box-open"},
+  {id:3,  name:"Asistencia a Adultos Mayores",       short:"Adult.May.",type:"property", price:300, aporte:50,  group:1},
+  {id:4,  name:"Impuesto de Solidaridad",            short:"IMP.SOL.",  type:"tax",      amount:150,icon:"fa-file-invoice-dollar"},
+  {id:5,  name:"Centro de Reciclaje",                short:"Reciclaje", type:"property", price:300, aporte:50,  group:1},
+  {id:6,  name:"Día de Servicio",                    short:"SERVICIO",  type:"servicio", icon:"fa-hands-helping"},
+  {id:7,  name:"Comedor Solidario",                  short:"Comedor",   type:"property", price:300, aporte:50,  group:1},
+  {id:8,  name:"Huerto Comunitario",                 short:"Huerto",    type:"property", price:250, aporte:50,  group:1},
+  {id:9,  name:"Parque Limpio",                      short:"Parque",    type:"property", price:250, aporte:50,  group:1},
+  {id:10, name:"Cárcel del Individualismo",          short:"CÁRCEL",    type:"jail",     icon:"fa-lock"},
+  {id:11, name:"Taller de Habilidades",              short:"T.Habilid.",type:"property", price:350, aporte:100, group:0},
+  {id:12, name:"Talleres de Consumo Responsable",    short:"T.Consumo", type:"property", price:500, aporte:150, group:2},
+  {id:13, name:"Cofre Comunitario",                  short:"COFRE",     type:"cofre",    icon:"fa-box-open"},
+  {id:14, name:"Campañas Limpieza Ríos/Playas",      short:"C.Playas",  type:"property", price:500, aporte:150, group:2},
+  {id:15, name:"Protección de Fauna Local",          short:"Fauna",     type:"property", price:500, aporte:150, group:3},
+  {id:16, name:"Emprendimiento Social",              short:"Emprend.",  type:"property", price:450, aporte:150, group:3},
+  {id:17, name:"Proyecto de Inclusión",              short:"Inclusión", type:"property", price:450, aporte:150, group:3},
+  {id:18, name:"Impuesto Ambiental",                 short:"IMP.AMB.",  type:"tax",      amount:200,icon:"fa-leaf"},
+  {id:19, name:"Área de Reflexión",                  short:"REFLEX.",   type:"reflexion",icon:"fa-brain"},
+  {id:20, name:"Día de Servicio",                    short:"SERVICIO",  type:"servicio", icon:"fa-hands-helping"},
+  {id:21, name:"Campaña de Conciencia",              short:"C.Concienc",type:"property", price:400, aporte:100, group:4},
+  {id:22, name:"Falta de Generosidad",               short:"FALTA",     type:"falta",    icon:"fa-times-circle"},
+  {id:23, name:"Jornada de Donación",                short:"Jornada",   type:"property", price:400, aporte:100, group:4},
+  {id:24, name:"Cofre Comunitario",                  short:"COFRE",     type:"cofre",    icon:"fa-box-open"},
+  {id:25, name:"Programa de Mentorías Comunitarias", short:"Mentorías", type:"property", price:550, aporte:200, group:5},
+  {id:26, name:"Falta de Generosidad",               short:"FALTA",     type:"falta",    icon:"fa-times-circle"},
+  {id:27, name:"Espacio de Intercambio Cultural",    short:"Intercambio",type:"property",price:550, aporte:200, group:5},
+  {id:28, name:"Reto de Generosidad",                short:"RETO",      type:"gotojail", icon:"fa-exclamation-triangle"},
+  {id:29, name:"Clases de Yoga y Meditación Abiertas",short:"Yoga/Medit.",type:"property",price:600,aporte:250,group:6},
+  {id:30, name:"Área de Reflexión",                  short:"REFLEX.",   type:"reflexion",icon:"fa-brain"},
+  {id:31, name:"Donación de Material Deportivo",     short:"Mat.Deport.",type:"property",price:600, aporte:250, group:6},
+  {id:32, name:"Impuesto de Equidad",                short:"IMP.EQU.",  type:"tax",      amount:300,icon:"fa-balance-scale"},
+  {id:33, name:"Cofre Comunitario",                  short:"COFRE",     type:"cofre",    icon:"fa-box-open"},
+  {id:34, name:"Falta de Generosidad",               short:"FALTA",     type:"falta",    icon:"fa-times-circle"},
+  {id:35, name:"Área de Reflexión",                  short:"REFLEX.",   type:"reflexion",icon:"fa-brain"},
+  {id:36, name:"Banco de Alimentos",                 short:"Banco Alim",type:"property", price:400, aporte:120, group:4},
+  {id:37, name:"Brigada de Salud Comunitaria",       short:"B.Salud",   type:"property", price:500, aporte:175, group:3},
+  {id:38, name:"Escuela Comunitaria",                short:"Escuela",   type:"property", price:550, aporte:200, group:5},
+  {id:39, name:"Hospital de Campaña",                short:"Hospital",  type:"property", price:650, aporte:250, group:6}
+];
+
+// ── TABLA DE APORTES POR NIVEL DE VOLUNTARIOS (del reglamento) ──────────────
+// Nivel 0 = aporte base, 1-4 = voluntarios, 5 = ONG
+// Costo de cada mejora = aporte base del grupo
+var VOL_APORTES={
+  // [base, vol1, vol2, vol3, vol4, ONG]
+  0:[100,150,200,250,300,500],   // naranja (Tutorías, T.Habilidades)
+  1:[50, 100,150,200,250,400],   // rosado
+  2:[150,200,250,300,350,600],   // azul oscuro
+  3:[150,200,250,300,350,600],   // cyan
+  4:[100,150,200,250,300,500],   // verde
+  5:[200,250,300,350,400,550],   // café
+  6:[250,250,300,350,400,550],   // rojo oscuro
+  7:[120,175,225,275,325,500]    // mixto
+};
+// Costo de comprar cada mejora (igual al aporte base del grupo)
+var VOL_COST={0:100,1:50,2:150,3:150,4:100,5:200,6:250,7:120};
+// Colores por grupo
+var GC=["#f77f00","#e91e8c","#1565c0","#00838f","#4caf50","#795548","#b71c1c","#d4a017"];
+var PC=["#e63946","#457b9d","#2a9d8f","#e9c46a","#9b5de5","#f77f00"];
+
+// ── TARJETAS COFRE COMUNITARIO (del tablero físico) ─────────────────────────
+var CC=[
+  {title:"Acto de Amabilidad",      text:"Ayudaste a un compañero con sus tareas.",                      action:"gain",       amount:50},
+  {title:"Compartir Conocimiento",  text:"Enseñaste algo nuevo a tus amigos.",                            action:"gain",       amount:100},
+  {title:"Voluntariado en la Escuela", text:"Dedicaste tiempo a mejorar tu entorno escolar.",            action:"move_fwd",   amount:2},
+  {title:"Apoyo Incondicional",     text:"Estuviste ahí para alguien que te necesitaba.",                action:"collect_all",amount:100},
+  {title:"Inspiración",             text:"Tu generosidad motivó a otros. Cada jugador te da 50 pts.",    action:"collect_all",amount:50},
+  {title:"Sorpresa",                text:"Un acto de generosidad regresa a ti.",                          action:"gain",       amount:150},
+  {title:"Bonificación por Empatía",text:"Comprendiste y apoyaste a un compañero.",                      action:"gain",       amount:100},
+  {title:"Iniciativa Solidaria",    text:"Organizaste una pequeña acción de ayuda. ¡Avanza al Día de Servicio!", action:"goto", position:6, collectGO:true},
+  {title:"Círculo de Amistad",      text:"Ayudaste a un nuevo estudiante a sentirse incluido. Cada jugador te da 50 pts.", action:"collect_all",amount:50},
+  {title:"El Regalo de Escuchar",   text:"Dedicaste tiempo a escuchar atentamente a un amigo.",          action:"gain",       amount:100},
+  {title:"Un Amigo en Apuros",      text:"Escuchaste y apoyaste a alguien que lo necesitaba.",            action:"gain",       amount:50},
+  {title:"Héroe del Receso",        text:"Resolviste un pequeño conflicto entre amigos. Cada jugador te da 50 pts.", action:"collect_all",amount:50},
+  {title:"Bonificación Extra",      text:"Por tu actitud siempre positiva y de ayuda.",                  action:"gain",       amount:150},
+  {title:"Avanza al Punto de Partida", text:"¡Tu generosidad te lleva de vuelta al inicio! Cobra 200 pts.",action:"goto",position:0,collectGO:true},
+  {title:"Donación Anónima",        text:"Recibes una donación anónima para tu proyecto comunitario.",   action:"gain",       amount:200}
+];
+
+// ── TARJETAS FALTA DE GENEROSIDAD (del tablero físico) ─────────────────────
+var CF=[
+  {title:"Oportunidad Perdida",     text:"No compartiste tus materiales. Aporta al Cofre Solidario.",    action:"fund",       amount:50},
+  {title:"Falta de Colaboración",   text:"Preferiste trabajar solo. Ve hasta el Área de Reflexión.",     action:"goto",       position:19, collectGO:false},
+  {title:"Pequeño Olvido",          text:"No devolviste algo que te prestaron. Aporta al Cofre Solidario.", action:"fund",    amount:50},
+  {title:"Actitud Individualista",  text:"Solo pensaste en ti mismo.",                                    action:"jail"},
+  {title:"Descuido con el Entorno", text:"Dejaste un desorden para que otros lo limpiaran.",              action:"fund",       amount:50},
+  {title:"Reto de Empatía",         text:"Tienes que reflexionar sobre una situación difícil.",            action:"lose_turn"},
+  {title:"Promesa Incumplida",      text:"No cumpliste con una pequeña promesa.",                         action:"fund",       amount:50},
+  {title:"Distracción",             text:"No estuviste atento a las necesidades de los demás.",           action:"fund",       amount:50},
+  {title:"Un Poco de Desorden",     text:"Dejaste algo tirado y otro tuvo que recogerlo. Ve al Área de Reflexión.", action:"goto", position:19, collectGO:false},
+  {title:"Mirada al Ombligo",       text:"Estuviste demasiado concentrado en ti mismo para ver una necesidad.", action:"fund", amount:50},
+  {title:"Mensaje Mal Entendido",   text:"Tu comunicación no fue clara y causó un pequeño problema. Pierdes tu próximo turno.", action:"lose_turn"},
+  {title:"Impulso de Egoísmo",      text:"Tomaste algo sin preguntar.",                                   action:"jail"},
+  {title:"Paga a cada jugador",     text:"Falta de transparencia en tus acciones. Paga $50 a cada jugador.", action:"pay_all", amount:50},
+  {title:"Retrocede 3 casillas",    text:"Te negaste a colaborar con tus compañeros.",                   action:"move_back",  amount:3},
+  {title:"Contribuye al Fondo",     text:"Tu actitud egoísta afectó al grupo. Paga al Fondo Comunitario.", action:"fund",     amount:100}
+];
+
+// Preguntas de reflexión para el Área de Reflexión
+var REFLEXION_Q=[
+  "¿Hubo algún momento hoy en que ayudaste a alguien sin esperar nada a cambio?",
+  "¿Qué significa ser generoso cuando cuesta algo?",
+  "¿Cómo te sientes cuando alguien te da algo sin pedírtelo?",
+  "¿Qué diferencia hay entre dar porque quieres y dar porque te obligan?",
+  "¿Puedes pensar en alguien que necesite tu ayuda hoy?"
+];
+
+var RULES_HTML='<div class="rules-content">'+
+'<h3>Objetivo del Juego</h3><p>Acumular la mayor cantidad de <strong>Generosipoints</strong>. ¡No se trata de arruinar a los demás, sino de ser el más generoso!</p>'+
+'<h3>Inicio</h3><ul><li>Cada jugador recibe <strong>2500 Generosipoints</strong>.</li><li>El turno avanza en sentido horario.</li></ul>'+
+'<h3>Al Lanzar los Dados</h3><ul><li>Avanza tu ficha el número de casillas indicado.</li><li>Si sacas <strong>dobles</strong>, tienes un turno extra.</li><li>Si sacas dobles <strong>3 veces seguidas</strong>, vas a la Cárcel sin turno extra.</li></ul>'+
+'<h3>Punto de Partida (GO)</h3><ul><li>Cada vez que <strong>pases o caigas</strong> en esta casilla, recibes <strong>200 Generosipoints</strong>.</li></ul>'+
+'<h3>Casillas de Propiedad</h3><ul><li>Si no tiene dueño: puedes <strong>comprarla</strong> pagando al banco.</li><li>Si decides no comprar: se inicia una <strong>subasta</strong>.</li><li>Si tiene dueño: pagas el <strong>aporte</strong> al dueño (aumenta con voluntarios).</li><li>Si el dueño eres tú: no pasa nada, pero puedes mejorarla.</li></ul>'+
+'<h3>Voluntarios y ONG de Apoyo</h3><ul><li>Cuando <strong>posees todos los proyectos del mismo color</strong>, puedes agregar Voluntarios.</li><li>Cada proyecto puede tener hasta <strong>4 Voluntarios</strong> y luego una <strong>ONG de Apoyo</strong>.</li><li>Cada mejora <strong>aumenta el aporte</strong> que cobras cuando otros caen en tu propiedad.</li><li>El costo de cada mejora se descuenta de tus Generosipoints.</li><li>Para comprar: en tu turno, en la fase de "Continuar", haz clic en <strong>"Mis proyectos"</strong>.</li><li>En el tablero verás puntos verdes (voluntarios) y una estrella dorada (ONG).</li></ul>'+
+'<h3>Cofre Comunitario</h3><ul><li>Toma la tarjeta superior, léela en voz alta y sigue las instrucciones.</li></ul>'+
+'<h3>Falta de Generosidad</h3><ul><li>Toma la tarjeta superior, léela en voz alta y sigue las instrucciones.</li></ul>'+
+'<h3>Impuestos</h3><ul><li>Pagas la cantidad indicada al <strong>Fondo Comunitario</strong>.</li></ul>'+
+'<h3>Área de Reflexión</h3><ul><li>Donas <strong>50 Generosipoints</strong> al Fondo Comunitario.</li><li>Respondes una pregunta de reflexión ética.</li></ul>'+
+'<h3>Día de Servicio</h3><ul><li>Puedes <strong>donar voluntariamente</strong> 50 Generosipoints al Fondo, o simplemente esperar tu siguiente turno.</li></ul>'+
+'<h3>Reto de Generosidad</h3><ul><li>Vas directamente a la <strong>Cárcel del Individualismo</strong> sin pasar por el Punto de Partida.</li></ul>'+
+'<h3>Cárcel del Individualismo</h3><ul><li>Si caes por dados: solo estás de <strong>visita</strong>.</li><li>Si te envían: tienes <strong>3 turnos</strong> para salir.<ul><li>Intenta sacar <strong>dobles</strong>.</li><li>Paga <strong>150 Generosipoints</strong> para salir inmediatamente.</li><li>Si no logras dobles en 3 turnos, pagas $150 y avanzas.</li></ul></li></ul>'+
+'<h3>Subastas</h3><ul><li>Puja mínima: mitad del precio. Cada puja sube $10.</li><li>Cualquier jugador puede pujar o pasar.</li></ul>'+
+'<h3>Fondo Comunitario</h3><ul><li>Al final: el jugador con <strong>menos</strong> Generosipoints recibe la <strong>mitad</strong> del fondo; la otra mitad se reparte entre los demás.</li></ul>'+
+'<h3>Fin del Juego</h3><ul><li>Termina por tiempo o vueltas completadas.</li><li>Gana quien tenga <strong>más</strong> Generosipoints (incluyendo distribución del Fondo).</li></ul>'+
+'</div>';
+
+// ── ESTADO DEL JUEGO ────────────────────────────────────────────────────────
+var G={phase:"lobby",players:[],properties:{},volunteers:{},communityFund:0,currentPlayer:0,turnPhase:"roll",dice:[0,0],doublesCount:0,cofreIndex:0,faltaIndex:0,log:[],endCondition:"timer-30",timeRemaining:1800,targetLaps:0,gameStartTime:0,timerInterval:null,auction:null,currentSpace:0,skipNextTurn:{}};
+var localSnap={players:[],currentPlayer:-1,turnPhase:"",dice:[0,0],logLen:0,communityFund:0,auction:null};
+var myId=-1,isHost=false,peer=null,hostConn=null,roomCode="",connMap={},connReverseMap=new WeakMap(),processing=false,pendingCard=null;
+
+// ── UTILIDADES ───────────────────────────────────────────────────────────────
+function genCode(){var c="ABCDEFGHJKLMNPQRSTUVWXYZ23456789",r="";for(var i=0;i<4;i++)r+=c[Math.floor(Math.random()*c.length)];return r;}
+function showToast(m,icon){var t=document.getElementById("toast");t.innerHTML=(icon?'<i class="fas '+icon+'"></i>':'')+m;t.classList.add("show");setTimeout(function(){t.classList.remove("show");},3200);}
+function addLog(m,imp){G.log.push({msg:m,imp:!!imp});if(G.log.length>100)G.log.shift();renderLog();}
+function syncNow(){if(isHost)broadcastState();renderAll();}
+function getSpacePos(i){if(i<=10)return{r:11,c:i+1,side:"bottom",lr:false};if(i<=19)return{r:11-(i-10),c:11,side:"right",lr:true};if(i<=30)return{r:1,c:11-(i-20),side:"top",lr:false};return{r:i-29,c:1,side:"left",lr:true};}
+function isCorner(i){return i===0||i===10||i===20||i===30;}
+function nextActive(f){var n=(f+1)%G.players.length,s=0;while(G.players[n].eliminated&&s<G.players.length){n=(n+1)%G.players.length;s++;}return n;}
+
+function getSS(){return{phase:G.phase,players:G.players.map(function(p){return{id:p.id,name:p.name,color:p.color,money:p.money,position:p.position,inJail:p.inJail,jailTurns:p.jailTurns,properties:p.properties.slice(),eliminated:p.eliminated,laps:p.laps};}),properties:JSON.parse(JSON.stringify(G.properties)),volunteers:JSON.parse(JSON.stringify(G.volunteers)),communityFund:G.communityFund,currentPlayer:G.currentPlayer,turnPhase:G.turnPhase,dice:G.dice.slice(),doublesCount:G.doublesCount,cofreIndex:G.cofreIndex,faltaIndex:G.faltaIndex,log:G.log.map(function(l){return{msg:l.msg,imp:l.imp};}),endCondition:G.endCondition,timeRemaining:G.timeRemaining,targetLaps:G.targetLaps,gameStartTime:G.gameStartTime,currentSpace:G.currentSpace,skipNextTurn:JSON.parse(JSON.stringify(G.skipNextTurn)),auction:G.auction?{propertyId:G.auction.propertyId,currentBid:G.auction.currentBid,currentBidder:G.auction.currentBidder,passed:G.auction.passed.slice(),timer:null}:null};}
+
+function broadcastState(){var s=getSS(),k=Object.keys(connMap);for(var i=0;i<k.length;i++){var c=connMap[k[i]];if(c&&c.open){try{c.send({type:"state",data:s});}catch(e){}}}
+}
+function sendToHost(m){if(hostConn&&hostConn.open){try{hostConn.send(m);}catch(e){}}}
+
+// ── PEER.JS ──────────────────────────────────────────────────────────────────
+function setupPeer(id){return new Promise(function(res,rej){var cfg={debug:0,config:{iceServers:[{urls:"stun:stun.l.google.com:19302"},{urls:"stun:stun1.l.google.com:19302"}]}};var p=id?new Peer("geno-"+id,cfg):new Peer(undefined,cfg);p.on("open",function(){res(p);});p.on("error",function(e){rej(e);});peer=p;});}
+
+window.createRoom=async function(){
+  var name=document.getElementById("host-name").value.trim();
+  if(!name)return showToast("Ingresa tu nombre");
+  var btn=document.getElementById("btn-create");btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Creando...';
+  try{
+    roomCode=genCode();await setupPeer(roomCode);isHost=true;
+    G.players.push({id:0,name:name,color:PC[0],money:INIT_MONEY,position:0,inJail:false,jailTurns:0,properties:[],eliminated:false,laps:0});
+    myId=0;
+    peer.on("connection",function(cn){cn.on("open",function(){cn.on("data",function(d){handleCM(d,cn);});cn.on("close",function(){handleDC(cn);});});});
+    document.getElementById("room-code-display").textContent=roomCode;
+    document.getElementById("room-info").style.display="block";btn.style.display="none";renderHPL();
+  }catch(e){showToast("Error: "+(e.type||e.message));btn.disabled=false;btn.innerHTML='<i class="fas fa-plus"></i> Crear Sala';}
+};
+
+function handleDC(cn){var pid=connReverseMap.get(cn);if(pid!==undefined){delete connMap[pid];connReverseMap.delete(cn);if(G.players[pid]){G.players[pid].eliminated=true;addLog(G.players[pid].name+" desconectado.",true);if(G.phase==="playing"&&G.currentPlayer===pid)endTurn();syncNow();}}}
+
+function handleCM(msg,cn){
+  if(msg.type==="join"){var pid=G.players.length;if(pid>=6){cn.send({type:"error",msg:"Sala llena"});return;}G.players.push({id:pid,name:msg.name,color:PC[pid],money:INIT_MONEY,position:0,inJail:false,jailTurns:0,properties:[],eliminated:false,laps:0});connMap[pid]=cn;connReverseMap.set(cn,pid);cn.send({type:"assigned",pid:pid,color:PC[pid]});addLog(msg.name+" se unió.",true);renderHPL();syncNow();}
+  if(msg.type==="action")processAction(msg.action,msg.pid,msg.data);
+}
+function renderHPL(){var el=document.getElementById("player-list-host"),h="";for(var i=0;i<G.players.length;i++){var p=G.players[i];h+='<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px"><div style="width:12px;height:12px;border-radius:50%;background:'+p.color+'"></div>'+p.name+(p.id===0?" (Host)":"")+"</div>";}el.innerHTML=h;document.getElementById("btn-start").disabled=G.players.length<2;}
+
+window.joinRoom=async function(){
+  var name=document.getElementById("join-name").value.trim(),code=document.getElementById("join-code").value.trim().toUpperCase();
+  if(!name)return showToast("Ingresa tu nombre");if(!code)return showToast("Ingresa el código");
+  var btn=document.getElementById("btn-join");btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Conectando...';
+  var st=document.getElementById("join-status");st.textContent="Conectando...";
+  try{
+    await setupPeer();hostConn=peer.connect("geno-"+code,{reliable:true});
+    hostConn.on("open",function(){hostConn.send({type:"join",name:name});st.textContent="Esperando al host...";});
+    hostConn.on("data",function(d){if(d.type==="assigned"){myId=d.pid;st.innerHTML='<span style="color:#2a9d8f"><i class="fas fa-check-circle"></i> Conectado como '+name+"</span><br><span style=\"font-size:11px;color:var(--muted)\">Esperando inicio...</span>";}if(d.type==="state")applyState(d.data);if(d.type==="error"){st.innerHTML='<span style="color:#e63946">'+d.msg+"</span>";btn.disabled=false;btn.innerHTML='<i class="fas fa-sign-in-alt"></i> Unirse';}});
+    hostConn.on("close",function(){st.innerHTML='<span style="color:#e63946">Conexión perdida.</span>';});
+    hostConn.on("error",function(e){var err="Error: "+(e.type||"Desconocido");if(e.type==="peer-unavailable")err="Sala no encontrada.";st.innerHTML='<span style="color:#e63946">'+err+"</span>";btn.disabled=false;btn.innerHTML='<i class="fas fa-sign-in-alt"></i> Unirse';});
+  }catch(e){st.innerHTML='<span style="color:#e63946">Error: '+(e.type||e.message)+"</span>";btn.disabled=false;btn.innerHTML='<i class="fas fa-sign-in-alt"></i> Unirse';}
+};
+
+function applyState(d){
+  var wasL=G.phase==="lobby";
+  var prevSnap=JSON.stringify(localSnap);
+  G.phase=d.phase;G.players=d.players;G.properties=d.properties;G.volunteers=d.volunteers||{};G.communityFund=d.communityFund;G.currentPlayer=d.currentPlayer;G.turnPhase=d.turnPhase;G.dice=d.dice;G.doublesCount=d.doublesCount;G.cofreIndex=d.cofreIndex;G.faltaIndex=d.faltaIndex;G.log=d.log;G.endCondition=d.endCondition;G.timeRemaining=d.timeRemaining;G.targetLaps=d.targetLaps;G.gameStartTime=d.gameStartTime;G.auction=d.auction;G.currentSpace=d.currentSpace||0;G.skipNextTurn=d.skipNextTurn||{};
+  var newSnap={players:G.players.map(function(p){return{position:p.position,money:p.money,inJail:p.inJail};}),currentPlayer:G.currentPlayer,turnPhase:G.turnPhase,dice:G.dice.slice(),logLen:G.log.length,communityFund:G.communityFund,auction:G.auction?JSON.stringify(G.auction):null};
+  var newSnapStr=JSON.stringify(newSnap);
+  if(G.phase==="playing"&&wasL){document.getElementById("lobby").style.display="none";document.getElementById("game").classList.add("active");buildBoard();if(G.endCondition.startsWith("timer"))document.getElementById("sb-timer").style.display="block";localSnap=newSnap;prevSnap=newSnapStr;renderAll();return;}
+  if(G.phase==="ended"){showEndGame();renderAll();return;}
+  if(prevSnap!==newSnapStr&&!wasL){clientDetectChanges(prevSnap,newSnap);}
+  localSnap=newSnap;renderAll();
+}
+
+function clientDetectChanges(prev,curr){
+  if(prev.dice[0]!==curr.dice[0]||prev.dice[1]!==curr.dice[1]){if(curr.dice[0]>0&&curr.dice[1]>0)clientAnimateDice(curr.dice[0],curr.dice[1]);}
+  for(var i=0;i<Math.min(prev.players.length,curr.players.length);i++){if(prev.players[i].position!==curr.players[i].position&&!curr.players[i].eliminated){clientAnimateMove(G.players[i].id,prev.players[i].position,curr.players[i].position);break;}}
+  if(curr.logLen>prev.logLen){for(var j=prev.logLen;j<curr.logLen&&j<G.log.length;j++){var msg=G.log[j].msg;if(msg.indexOf("+$200")!==-1)showToast("+$200 por pasar el Punto de Partida!","fa-heart");if(msg.indexOf("Cárcel")!==-1&&msg.indexOf("va a")!==-1)showToast("¡Cárcel del Individualismo!","fa-lock");if(msg.indexOf("sale de la Cárcel")!==-1)showToast("¡Salió de la Cárcel!","fa-unlock");if(msg.indexOf("compra ")!==-1){var nm=msg.split("compra ")[1];if(nm)nm=nm.split(" por")[0];if(nm)showToast("Compró: "+nm.trim(),"fa-shopping-cart");}if(msg.indexOf("aporta $")!==-1)showToast("Aporte pagado","fa-hand-holding-heart");if(msg.indexOf("Impuesto")!==-1)showToast("Impuesto pagado","fa-file-invoice-dollar");if(msg.indexOf("reflexiona")!==-1)showToast("Reflexión: -$50 al Fondo","fa-brain");if(msg.indexOf("Subasta:")!==-1&&msg.indexOf("iniciada")!==-1)showToast("¡Subasta iniciada!","fa-gavel");if(msg.indexOf("gana subasta")!==-1)showToast("Subasta resuelta","fa-gavel");if(msg.indexOf("eliminado")!==-1)showToast("Jugador eliminado","fa-user-slash");if(msg.indexOf("dona $50")!==-1)showToast("Donación: -$50","fa-hand-holding-heart");if(msg.indexOf("dobles")!==-1&&msg.indexOf("Turno extra")!==-1)showToast("¡Turno extra por dobles!","fa-dice");}}
+}
+
+function clientAnimateDice(d1,d2){var e1=document.getElementById("die1"),e2=document.getElementById("die2");e1.classList.add("rolling");e2.classList.add("rolling");document.getElementById("dice-result").textContent="";var c=0,iv=setInterval(function(){renderDie(e1,Math.floor(Math.random()*6)+1);renderDie(e2,Math.floor(Math.random()*6)+1);c++;if(c>8){clearInterval(iv);e1.classList.remove("rolling");e2.classList.remove("rolling");renderDie(e1,d1);renderDie(e2,d2);document.getElementById("dice-result").textContent=(d1===d2?"¡Dobles!":"");}},60);}
+
+function clientAnimateMove(pid,fromPos,toPos){var p=G.players[pid];if(!p||p.eliminated)return;p.position=fromPos;renderTokens();var steps=(toPos-fromPos+40)%40,moved=0;function step(){if(moved>=steps){p.position=toPos;renderTokens();return;}p.position=(p.position+1)%40;renderTokens();moved++;setTimeout(step,200);}setTimeout(step,100);}
+
+function showRulesModal(){var mc=document.getElementById("modal-content");mc.innerHTML='<h2><i class="fas fa-book" style="margin-right:8px"></i>Reglamento de Generosopoly</h2>'+RULES_HTML+'<button class="btn btn-primary" onclick="closeModal()" style="margin-top:20px;width:100%"><i class="fas fa-check"></i> Entendido</button>';document.getElementById("modal").classList.add("active");}
+window.showRules=showRulesModal;
+
+window.startGame=function(){
+  if(G.players.length<2)return;
+  G.phase="playing";G.endCondition=document.getElementById("end-cond").value;
+  if(G.endCondition.startsWith("timer"))G.timeRemaining=parseInt(G.endCondition.split("-")[1])*60;else G.targetLaps=parseInt(G.endCondition.split("-")[1]);
+  G.gameStartTime=Date.now();
+  // Barajar mazos al inicio
+  G.cofreIndex=Math.floor(Math.random()*CC.length);G.faltaIndex=Math.floor(Math.random()*CF.length);
+  document.getElementById("lobby").style.display="none";document.getElementById("game").classList.add("active");buildBoard();
+  var mc=document.getElementById("modal-content");mc.innerHTML='<h2><i class="fas fa-book" style="margin-right:8px"></i>Reglamento de Generosopoly</h2>'+RULES_HTML+'<div style="margin-top:20px"><button class="btn btn-primary" onclick="closeModal()" style="width:100%"><i class="fas fa-check"></i> He leído las reglas - ¡A jugar!</button></div>';document.getElementById("modal").classList.add("active");
+  addLog("¡El juego ha comenzado!",true);addLog("Turno de: "+G.players[0].name,true);
+  if(G.endCondition.startsWith("timer")){document.getElementById("sb-timer").style.display="block";G.timerInterval=setInterval(function(){G.timeRemaining--;renderTimer();if(G.timeRemaining<=0){clearInterval(G.timerInterval);endGame();}},1000);}
+  localSnap={players:G.players.map(function(p){return{position:p.position,money:p.money,inJail:p.inJail};}),currentPlayer:G.currentPlayer,turnPhase:G.turnPhase,dice:G.dice.slice(),logLen:G.log.length,communityFund:G.communityFund,auction:null};
+  syncNow();
+};
+
+function renderTimer(){var m=Math.floor(G.timeRemaining/60),s=G.timeRemaining%60,el=document.getElementById("timer-text");el.textContent=m+":"+(s<10?"0":"")+s;el.style.color=G.timeRemaining<=60?"#e63946":"var(--accent)";}
+
+// ── CONSTRUCCIÓN DEL TABLERO ─────────────────────────────────────────────────
+function buildBoard(){
+  var b=document.getElementById("board");b.innerHTML="";
+
+  // Tamaños según posición y tipo
+  // Casillas normales: ancho ~1/11 del tablero
+  // ns = font-size nombre, ps = font-size precio, is = font-size icono
+  for(var i=0;i<40;i++){
+    var sp=BOARD[i],pos=getSpacePos(i),div=document.createElement("div");
+    var corner=isCorner(i);
+    div.className="space "+pos.side+" "+(sp.type)+(corner?" corner":"");
+    div.id="space-"+i;div.dataset.id=i;
+    div.style.gridRow=pos.r;div.style.gridColumn=pos.c;
+
+    // Tamaños adaptables según posición
+    var lr=pos.lr; // columnas laterales
+    var ns=corner?"clamp(7px,0.9vw,11px)":lr?"clamp(6.5px,0.88vw,11px)":"clamp(6.5px,0.92vw,11.5px)";
+    var ps=corner?"clamp(7px,0.9vw,11px)":lr?"clamp(6px,0.82vw,10px)":"clamp(6px,0.85vw,10.5px)";
+    var is=corner?"clamp(18px,2.8vw,32px)":"clamp(10px,1.6vw,19px)";
+
+    if(corner){
+      // Esquinas: layout libre centrado
+      var ico="",lbl="",col="";
+      if(sp.type==="go")    {ico='<i class="fas fa-heart si" style="color:#27ae60;font-size:'+is+'"></i>';lbl='<span class="sn" style="font-size:'+ns+';color:#1a5c38;font-weight:900;letter-spacing:.5px">GO</span><span style="font-size:clamp(5px,.7vw,8px);color:#27ae60;display:block">+$200</span>';}
+      else if(sp.type==="jail") {ico='<i class="fas fa-lock si" style="color:#666;font-size:'+is+'"></i>';lbl='<span class="sn" style="font-size:'+ns+'">CÁRCEL</span>';}
+      else if(sp.type==="gotojail"){ico='<i class="fas fa-exclamation-triangle si" style="color:#c0392b;font-size:'+is+'"></i>';lbl='<span class="sn" style="font-size:'+ns+';color:#c0392b">RETO</span>';}
+      else if(sp.type==="reflexion"){ico='<i class="fas fa-brain si" style="color:#e76f51;font-size:'+is+'"></i>';lbl='<span class="sn" style="font-size:'+ns+'">REFLEXIÓN</span>';}
+      div.innerHTML=ico+lbl;
+    } else if(sp.type==="property"){
+      // Propiedad: banda de color + nombre + precio + pips voluntarios
+      div.style.color=GC[sp.group];
+      div.innerHTML=
+        '<div class="cb"></div>'+
+        '<div class="sb">'+
+          '<span class="sn" style="font-size:'+ns+'">'+sp.short+'</span>'+
+          '<span class="sp" style="font-size:'+ps+'">$'+sp.price+'</span>'+
+          '<div class="vols" id="vols-'+i+'"></div>'+
+        '</div>';
+    } else if(sp.type==="tax"){
+      div.innerHTML=
+        '<div class="sb">'+
+          '<i class="fas '+sp.icon+' si" style="color:#c0392b;font-size:'+is+'"></i>'+
+          '<span class="sn" style="font-size:'+ns+'">'+sp.short+'</span>'+
+          '<span class="sp" style="font-size:'+ps+';color:#c0392b">$'+sp.amount+'</span>'+
+        '</div>';
+    } else if(sp.type==="cofre"){
+      div.innerHTML=
+        '<div class="sb">'+
+          '<i class="fas fa-box-open si" style="color:#2a9d8f;font-size:'+is+'"></i>'+
+          '<span class="sn" style="font-size:'+ns+';color:#2a9d8f;font-weight:800">COFRE</span>'+
+        '</div>';
+    } else if(sp.type==="falta"){
+      div.innerHTML=
+        '<div class="sb">'+
+          '<i class="fas fa-times-circle si" style="color:#e63946;font-size:'+is+'"></i>'+
+          '<span class="sn" style="font-size:'+ns+';color:#c0392b;font-weight:800">FALTA</span>'+
+        '</div>';
+    } else if(sp.type==="reflexion"){
+      div.innerHTML=
+        '<div class="sb">'+
+          '<i class="fas fa-brain si" style="color:#e76f51;font-size:'+is+'"></i>'+
+          '<span class="sn" style="font-size:'+ns+'">REFLEXIÓN</span>'+
+          '<span class="sp" style="font-size:clamp(5px,.7vw,8px);color:#e76f51">-$50</span>'+
+        '</div>';
+    } else if(sp.type==="servicio"){
+      div.innerHTML=
+        '<div class="sb">'+
+          '<i class="fas fa-hands-helping si" style="color:#9b59b6;font-size:'+is+'"></i>'+
+          '<span class="sn" style="font-size:'+ns+';color:#9b59b6;font-weight:800">SERVICIO</span>'+
+        '</div>';
+    } else {
+      div.innerHTML='<div class="sb"><span class="sn" style="font-size:'+ns+'">'+sp.short+'</span></div>';
+    }
+    b.appendChild(div);
+  }
+  var ct=document.createElement("div");ct.className="board-center";ct.id="board-center";
+  ct.innerHTML="<h2>GENEROSOPOLY</h2><div style=\"font-size:clamp(9px,1.2vw,13px);color:var(--text-dark);opacity:.6;text-align:center\">El Juego de la Generosidad</div><div class=\"fund-box\"><i class=\"fas fa-hand-holding-heart\" style=\"margin-right:6px\"></i>Fondo: $<span id=\"fund-center\">0</span></div><button id=\"rules-btn-center\" onclick=\"showRules()\"><i class=\"fas fa-book\" style=\"margin-right:4px\"></i>Ver Reglas</button>";
+  b.appendChild(ct);renderTokens();
+}
+
+function getTokenOffsets(n){if(n===1)return[{x:50,y:50}];if(n===2)return[{x:35,y:50},{x:65,y:50}];if(n===3)return[{x:25,y:50},{x:50,y:50},{x:75,y:50}];if(n===4)return[{x:30,y:35},{x:70,y:35},{x:30,y:65},{x:70,y:65}];return[{x:25,y:28},{x:75,y:28},{x:25,y:72},{x:75,y:72},{x:50,y:42},{x:50,y:62}];}
+
+function renderTokens(){document.querySelectorAll(".token").forEach(function(t){t.remove();});var bs={};for(var i=0;i<G.players.length;i++){var p=G.players[i];if(p.eliminated)continue;if(!bs[p.position])bs[p.position]=[];bs[p.position].push(p);}var sk=Object.keys(bs);for(var s=0;s<sk.length;s++){var pls=bs[sk[s]],se=document.getElementById("space-"+sk[s]);if(!se)continue;var offs=getTokenOffsets(pls.length);for(var j=0;j<pls.length;j++){var pl=pls[j],tk=document.createElement("div");tk.className="token"+(G.currentPlayer===pl.id?" active-token":"");tk.style.background=pl.color;tk.textContent=pl.name[0].toUpperCase();var o=offs[Math.min(j,offs.length-1)];tk.style.left="calc("+o.x+"% - 11px)";tk.style.top="calc("+o.y+"% - 11px)";se.appendChild(tk);}}}
+
+function renderAll(){renderTokens();renderPlayers();renderAction();renderFund();renderLog();renderVols();if(G.endCondition.startsWith("timer")&&G.phase==="playing")renderTimer();}
+
+// ── RENDERIZAR PIPS DE VOLUNTARIOS EN EL TABLERO ─────────────────────────────
+function renderVols(){
+  for(var sid in G.volunteers){
+    var el=document.getElementById("vols-"+sid);
+    if(!el)continue;
+    var lv=G.volunteers[sid]||0;
+    var h="";
+    for(var v=0;v<Math.min(lv,4);v++)h+='<div class="vol-pip"></div>';
+    if(lv>=5)h='<div class="vol-pip ong" title="ONG de Apoyo">★</div>';
+    el.innerHTML=h;
+  }
+}
+
+// ── HELPERS VOLUNTARIOS ───────────────────────────────────────────────────────
+function getAporte(spaceId){
+  var sp=BOARD[spaceId];if(!sp||sp.type!=="property")return 0;
+  var lv=G.volunteers[spaceId]||0;
+  var table=VOL_APORTES[sp.group];
+  if(!table)return sp.aporte;
+  return table[Math.min(lv,5)];
+}
+function canBuyVol(pid,spaceId){
+  var sp=BOARD[spaceId];if(!sp||sp.type!=="property")return false;
+  if(G.properties[spaceId]!==pid)return false;
+  var lv=G.volunteers[spaceId]||0;
+  if(lv>=5)return false; // ya tiene ONG
+  // Para comprar voluntario 1: debe tener toda la vuelta del mismo grupo
+  var grp=sp.group;
+  var grpSpaces=[];
+  for(var i=0;i<BOARD.length;i++){if(BOARD[i].type==="property"&&BOARD[i].group===grp)grpSpaces.push(i);}
+  for(var j=0;j<grpSpaces.length;j++){if(G.properties[grpSpaces[j]]!==pid)return false;}
+  var cost=VOL_COST[grp];
+  return G.players[pid].money>=cost;
+}
+function volCostLabel(spaceId){
+  var sp=BOARD[spaceId];if(!sp)return 0;
+  return VOL_COST[sp.group]||0;
+}
+function volNextLabel(spaceId){
+  var lv=G.volunteers[spaceId]||0;
+  return lv<4?"Voluntario "+(lv+1):"ONG de Apoyo";
+}
+
+// ── PANEL DE PROPIEDADES ──────────────────────────────────────────────────────
+window.showPropPanel=function(pid){
+  var p=G.players[pid];if(!p)return;
+  var isMe=pid===myId&&G.phase==="playing"&&G.currentPlayer===pid&&G.turnPhase==="continue";
+  var h='<div class="prop-panel" id="prop-panel" onclick="if(event.target===this)closePropPanel()">';
+  h+='<div class="prop-panel-inner">';
+  h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">';
+  h+='<div style="width:18px;height:18px;border-radius:50%;background:'+p.color+'"></div>';
+  h+='<h2 style="margin:0">'+p.name+(pid===myId?" (Tú)":"")+'</h2>';
+  h+='<div style="margin-left:auto;font-family:Fredoka,sans-serif;font-size:20px;color:var(--accent)">$'+p.money+'</div>';
+  h+='</div>';
+  if(p.properties.length===0){
+    h+='<p style="color:var(--muted);font-size:14px;text-align:center;padding:20px 0">Aún no tiene propiedades.</p>';
+  } else {
+    // Agrupar por color
+    var byGroup={};
+    for(var i=0;i<p.properties.length;i++){
+      var sid=p.properties[i],sp=BOARD[sid];
+      if(!byGroup[sp.group])byGroup[sp.group]=[];
+      byGroup[sp.group].push(sid);
+    }
+    var gks=Object.keys(byGroup).sort(function(a,b){return a-b;});
+    for(var g=0;g<gks.length;g++){
+      var grp=parseInt(gks[g]),sids=byGroup[grp];
+      h+='<div style="margin-bottom:12px">';
+      h+='<div style="font-size:11px;font-weight:700;color:'+GC[grp]+';text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;padding:3px 8px;background:'+GC[grp]+'22;border-radius:4px;display:inline-block">Grupo '+String.fromCharCode(65+grp)+'</div>';
+      for(var s=0;s<sids.length;s++){
+        var sid2=sids[s],sp2=BOARD[sid2];
+        var lv=G.volunteers[sid2]||0;
+        var apt=getAporte(sid2);
+        var canV=canBuyVol(pid,sid2);
+        var vcost=volCostLabel(sid2);
+        var vnext=volNextLabel(sid2);
+        // Pips
+        var pips="";
+        for(var v=0;v<Math.min(lv,4);v++)pips+='<div class="vp"></div>';
+        if(lv>=5)pips='<div class="vp ong">★</div>';
+        h+='<div class="prop-item">';
+        h+='<div class="pi-color" style="background:'+GC[grp]+'"></div>';
+        h+='<div style="flex:1;min-width:0">';
+        h+='<div class="pi-name">'+sp2.name+'</div>';
+        h+='<div class="pi-price">Aporte actual: <strong style="color:var(--accent)">$'+apt+'</strong>';
+        if(lv>0)h+=' · '+(lv<5?lv+" voluntario"+(lv>1?"s":""):' ONG ⭐');
+        h+='</div></div>';
+        h+='<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">';
+        h+='<div class="pi-vols">'+pips+'</div>';
+        if(isMe&&canV){
+          h+='<button class="pi-buy-vol" onclick="buyVolAction('+sid2+')">+'+vnext+' ($'+vcost+')</button>';
+        } else if(isMe&&!canV&&lv<5){
+          var grpSpaces2=[];
+          for(var bi=0;bi<BOARD.length;bi++){if(BOARD[bi].type==="property"&&BOARD[bi].group===grp)grpSpaces2.push(bi);}
+          var ownsAll=true;
+          for(var bj=0;bj<grpSpaces2.length;bj++){if(G.properties[grpSpaces2[bj]]!==pid){ownsAll=false;break;}}
+          var reason=!ownsAll?"Necesitas todo el grupo":"Sin fondos";
+          h+='<button class="pi-buy-vol" disabled>'+reason+'</button>';
+        }
+        h+='</div>';
+        h+='</div>';
+      }
+      h+='</div>';
+    }
+  }
+  h+='<button class="btn btn-secondary" onclick="closePropPanel()" style="width:100%;margin-top:8px"><i class="fas fa-times"></i> Cerrar</button>';
+  h+='</div></div>';
+  document.body.insertAdjacentHTML("beforeend",h);
+};
+
+window.closePropPanel=function(){var el=document.getElementById("prop-panel");if(el)el.remove();};
+
+window.buyVolAction=function(spaceId){
+  closePropPanel();
+  if(!isHost)sendToHost({type:"action",action:"buy_vol",pid:myId,data:{spaceId:spaceId}});
+  else processAction("buy_vol",myId,{spaceId:spaceId});
+};
+
+function renderPlayers(){
+  var el=document.getElementById("players-list"),h="";
+  for(var i=0;i<G.players.length;i++){
+    var p=G.players[i],cur=G.currentPlayer===p.id&&G.phase==="playing";
+    var pr="";
+    for(var j=0;j<p.properties.length;j++){
+      var si=p.properties[j],sp=BOARD[si];
+      if(!sp)continue;
+      var lv=G.volunteers[si]||0;
+      var pip=lv>=5?'<div class="prop-dot" style="background:'+GC[sp.group]+';border-color:var(--accent);outline:1px solid var(--accent)" title="ONG: '+sp.short+'"></div>':
+               lv>0?'<div class="prop-dot" style="background:'+GC[sp.group]+';border-color:#27ae60;outline:1px solid #27ae60" title="'+lv+' vol. - '+sp.short+'"></div>':
+               '<div class="prop-dot" style="background:'+GC[sp.group]+'" title="'+sp.short+'"></div>';
+      pr+=pip;
+    }
+    h+='<div class="player-row'+(cur?" current":"")+(p.eliminated?" eliminated":"")+'" onclick="showPropPanel('+p.id+')" style="cursor:pointer" title="Ver propiedades de '+p.name+'">';
+    h+='<div class="player-dot" style="background:'+p.color+'"></div>';
+    h+='<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.name+(p.id===myId?" (Tú)":"")+(p.inJail?" 🔒":"")+'</div><div class="props-mini">'+pr+"</div></div>";
+    h+='<div class="player-money">$'+p.money+'</div>';
+    h+='</div>';
+  }
+  el.innerHTML=h;
+}
+
+function renderFund(){document.getElementById("fund-display").textContent="$"+G.communityFund;var fc=document.getElementById("fund-center");if(fc)fc.textContent=G.communityFund;}
+function renderLog(){var el=document.getElementById("log"),h="";for(var i=0;i<G.log.length;i++)h+='<div class="log-entry'+(G.log[i].imp?" important":"")+'">'+G.log[i].msg+"</div>";el.innerHTML=h;el.scrollTop=el.scrollHeight;}
+function renderDie(el,v){var dots={1:[5],2:[3,7],3:[3,5,7],4:[1,3,7,9],5:[1,3,5,7,9],6:[1,3,4,6,7,9]};el.innerHTML="";for(var i=1;i<=9;i++){var d=document.createElement("div");if(dots[v]&&dots[v].indexOf(i)!==-1)d.className="dot";el.appendChild(d);}}
+
+function renderAction(){
+  var el=document.getElementById("action-content"),p=G.players[G.currentPlayer];
+  if(!p||p.eliminated){el.innerHTML='<div class="waiting-msg">Jugador eliminado</div>';return;}
+  if(G.currentPlayer!==myId||processing){el.innerHTML='<div class="waiting-msg"><i class="fas fa-hourglass-half"></i> Turno de '+p.name+(p.inJail?" 🔒":"")+"</div>";return;}
+  var h="";
+  if(G.turnPhase==="roll"&&!p.inJail)h='<div class="action-btns"><button class="btn btn-primary" onclick="doAction(\'roll\')"><i class="fas fa-dice"></i> Lanzar Dados</button></div>';
+  else if(G.turnPhase==="roll"&&p.inJail)h='<div style="font-size:12px;color:var(--muted);margin-bottom:8px">🔒 En la Cárcel ('+p.jailTurns+"/3 turnos)</div><div class=\"action-btns\"><button class=\"btn btn-primary\" onclick=\"doAction('roll_jail')\"><i class=\"fas fa-dice\"></i> Intentar Dobles</button><button class=\"btn btn-danger\" onclick=\"doAction('pay_jail')\"><i class=\"fas fa-coins\"></i> Pagar $150 y salir</button></div>";
+  else if(G.turnPhase==="buy"){var sp=BOARD[G.currentSpace];if(!sp){G.turnPhase="continue";syncNow();return;}h='<div style="font-size:13px;margin-bottom:8px"><strong>'+sp.name+"</strong><br>Precio: <strong>$"+sp.price+"</strong> | Aporte: $"+sp.aporte+'</div><div class="action-btns"><button class="btn btn-success" onclick="doAction(\'buy\')"><i class="fas fa-shopping-cart"></i> Comprar $'+sp.price+'</button><button class="btn btn-secondary" onclick="doAction(\'pass_buy\')"><i class="fas fa-gavel"></i> Pasar (Subasta)</button></div>';}
+  else if(G.turnPhase==="donate")h='<div style="font-size:13px;margin-bottom:8px"><i class="fas fa-hands-helping" style="color:#9b59b6"></i> <strong>Día de Servicio</strong><br><span style="font-size:12px;color:var(--muted)">¿Deseas donar voluntariamente?</span></div><div class="action-btns"><button class="btn btn-success" onclick="doAction(\'donate\')"><i class="fas fa-hand-holding-heart"></i> Donar $50 al Fondo</button><button class="btn btn-secondary" onclick="doAction(\'skip_donate\')"><i class="fas fa-forward"></i> Continuar sin donar</button></div>';
+  else if(G.turnPhase==="continue"){
+    var contBtn='<div class="action-btns"><button class="btn btn-primary" onclick="doAction(\'continue\')"><i class="fas fa-forward"></i> Continuar</button>';
+    // Botón ver mis propiedades siempre visible en turno propio
+    contBtn+='<button class="btn btn-secondary" onclick="showPropPanel('+myId+')" style="font-size:12px"><i class="fas fa-city"></i> Mis proyectos</button>';
+    contBtn+='</div>';
+    h=contBtn;
+  }
+  else if(G.turnPhase==="auction")h=renderAucUI();
+  el.innerHTML=h;
+}
+
+function renderAucUI(){if(!G.auction)return "";var a=G.auction,sp=BOARD[a.propertyId],myPassed=a.passed.indexOf(myId)!==-1;var h='<div style="font-size:13px;margin-bottom:6px"><i class="fas fa-gavel" style="color:var(--accent)"></i> <strong>Subasta: '+sp.name+"</strong></div><div class=\"auction-bid\">Puja: <span>$"+a.currentBid+"</span></div><div style=\"font-size:12px;color:var(--muted);margin-bottom:8px\">"+(a.currentBidder>=0?"Mayor postor: "+G.players[a.currentBidder].name:"Nadie ha pujado")+"</div>";if(!myPassed)h+='<div class="action-btns"><button class="btn btn-primary" onclick="doAction(\'auction_bid\')"><i class="fas fa-arrow-up"></i> Pujar $'+(a.currentBid+10)+'</button><button class="btn btn-secondary" onclick="doAction(\'auction_pass\')"><i class="fas fa-times"></i> Pasar</button></div>';else h+='<div style="font-size:12px;color:var(--muted)"><i class="fas fa-check"></i> Has pasado. Esperando a los demás...</div>';return h;}
+
+window.doAction=function(a,d){if(processing)return;if(!isHost)sendToHost({type:"action",action:a,pid:myId,data:d});else processAction(a,myId,d);};
+
+function processAction(a,pid,d){
+  if(processing)return;var p=G.players[pid];if(!p||p.eliminated)return;
+  if(pid!==G.currentPlayer&&a!=="auction_bid"&&a!=="auction_pass")return;
+  if(a==="roll"){processing=true;renderAction();animThenProc(pid,false);}
+  else if(a==="roll_jail"){processing=true;renderAction();animThenProc(pid,true);}
+  else if(a==="pay_jail")payJail(pid);
+  else if(a==="buy")buyProp(pid);
+  else if(a==="pass_buy")startAuc(pid);
+  else if(a==="donate")donateServ(pid);
+  else if(a==="skip_donate")endTurn();
+  else if(a==="continue")endTurn();
+  else if(a==="auction_bid")aucBid(pid);
+  else if(a==="auction_pass")aucPass(pid);
+  else if(a==="buy_vol")buyVol(pid,d&&d.spaceId);
+}
+
+function animThenProc(pid,fj){
+  var d1=Math.floor(Math.random()*6)+1,d2=Math.floor(Math.random()*6)+1,db=d1===d2;
+  G.dice=[d1,d2];
+  var e1=document.getElementById("die1"),e2=document.getElementById("die2");
+  e1.classList.add("rolling");e2.classList.add("rolling");document.getElementById("dice-result").textContent="";
+  var c=0,iv=setInterval(function(){renderDie(e1,Math.floor(Math.random()*6)+1);renderDie(e2,Math.floor(Math.random()*6)+1);c++;if(c>8){clearInterval(iv);e1.classList.remove("rolling");e2.classList.remove("rolling");renderDie(e1,d1);renderDie(e2,d2);document.getElementById("dice-result").textContent=db?"¡Dobles!":"";afterRoll(pid,d1+d2,db,fj);}},60);
+}
+
+function afterRoll(pid,tot,db,fj){
+  var p=G.players[pid];
+  if(fj){
+    if(db){
+      p.inJail=false;p.jailTurns=0;
+      addLog(p.name+" sale de la Cárcel con dobles!",true);
+      showToast(p.name+" ¡sale de la Cárcel!","fa-unlock");
+      moveP(pid,tot,true);
+    }else{
+      p.jailTurns++;
+      if(p.jailTurns>=3){
+        addLog(p.name+" no logró dobles en 3 turnos. Paga $150.",true);
+        p.money-=150;
+        if(p.money<0)p.money=0;
+        p.inJail=false;p.jailTurns=0;
+        moveP(pid,tot,true);
+      }else{
+        addLog(p.name+" no sacó dobles. "+p.jailTurns+"/3 en Cárcel.");
+        G.doublesCount=0;processing=false;endTurn();
+      }
+    }
+    return;
+  }
+  if(db){G.doublesCount++;if(G.doublesCount>=3){addLog(p.name+" ¡tres dobles seguidos! Va a la Cárcel.",true);sendJail(pid);processing=false;syncNow();return;}}
+  else{G.doublesCount=0;}
+  moveP(pid,tot,false);
+}
+
+// ── BUG FIX: Conteo de vueltas corregido ────────────────────────────────────
+function moveP(pid,steps,fj){
+  var p=G.players[pid];
+  var startPos=p.position;
+
+  if(fj){
+    // Desde cárcel: verificar si pasa por GO
+    var newPos=(p.position+steps)%40;
+    if(newPos < p.position || (p.position===0 && steps===0)){
+      // Pasó por GO (o cayó exactamente en GO)
+    }
+    // En realidad desde la cárcel (casilla 10) no puede pasar por 0 con <=30 pasos
+    // Solo aplica si steps > (40 - 10) = 30, lo cual es imposible con 2 dados
+    p.position=newPos;
+    G.currentSpace=p.position;
+    addLog(p.name+" avanza a: "+BOARD[p.position].name);
+    syncNow();
+    setTimeout(function(){resolveLand(pid);},500);
+    return;
+  }
+
+  var moved=0;
+  function stepOnce(){
+    if(moved>=steps){
+      G.currentSpace=p.position;
+      addLog(p.name+" cae en: "+BOARD[p.position].name);
+      syncNow();
+      setTimeout(function(){resolveLand(pid);},500);
+      return;
+    }
+    var prevPos=p.position;
+    p.position=(p.position+1)%40;
+    // Detectar paso por GO: cuando la posición pasa de 39 a 0
+    if(prevPos===39&&p.position===0){
+      p.laps++;
+      p.money+=200;
+      addLog(p.name+" pasa por el Punto de Partida. +$200 🎉",true);
+      showToast("+$200 por pasar el Punto de Partida!","fa-heart");
+      if(G.targetLaps>0&&p.laps>=G.targetLaps){
+        renderTokens();moved++;setTimeout(function(){
+          addLog(p.name+" completó "+G.targetLaps+" vueltas!",true);
+          checkLaps();
+        },100);
+        return;
+      }
+    }
+    renderTokens();
+    moved++;
+    setTimeout(stepOnce,220);
+  }
+  stepOnce();
+}
+
+function resolveLand(pid){
+  var p=G.players[pid];if(p.eliminated){processing=false;return;}
+  var sp=BOARD[G.currentSpace];if(!sp){processing=false;return;}
+  if(sp.type==="go"){
+    // Cayó exactamente en GO: ya recibió $200 al pasar. Solo continúa.
+    G.turnPhase="continue";
+  }
+  else if(sp.type==="property")resolveProp(pid);
+  else if(sp.type==="cofre")drawC(pid,"cofre");
+  else if(sp.type==="falta")drawC(pid,"falta");
+  else if(sp.type==="tax"){payTax(pid,sp.amount);}
+  else if(sp.type==="reflexion"){payReflex(pid);}
+  else if(sp.type==="servicio")G.turnPhase="donate";
+  else if(sp.type==="gotojail"){sendJail(pid);return;}
+  else if(sp.type==="jail")G.turnPhase="continue";
+  else G.turnPhase="continue";
+  processing=false;syncNow();
+}
+
+function resolveProp(pid){
+  var p=G.players[pid],sp=BOARD[G.currentSpace];
+  if(!sp){G.turnPhase="continue";processing=false;syncNow();return;}
+  var ow=G.properties[G.currentSpace];
+  if(ow===undefined||ow===null){
+    if(p.money>=sp.price)G.turnPhase="buy";
+    else{addLog(p.name+" no puede comprar "+sp.name+" ($"+sp.price+"). Subasta.");startAuc(pid);return;}
+  }else if(ow===pid){
+    addLog(p.name+" cae en su propiedad: "+sp.name);
+    G.turnPhase="continue";
+  }else if(G.players[ow]&&G.players[ow].eliminated){
+    addLog(sp.name+" (dueño eliminado). Subasta.");startAuc(pid);return;
+  }else{
+    var owP=G.players[ow];
+    var apt=getAporte(G.currentSpace);
+    var aporteReal=Math.min(apt,p.money);
+    p.money-=aporteReal;
+    if(owP)owP.money+=aporteReal;
+    var lv=G.volunteers[G.currentSpace]||0;
+    var lvLabel=lv===0?"":lv<5?" ("+lv+" vol.)":"(ONG)";
+    addLog(p.name+" aporta $"+aporteReal+lvLabel+" a "+(owP?owP.name:"?")+' por "'+sp.name+'"');
+    showToast("Aporte: -$"+aporteReal+" → "+(owP?owP.name:""),"fa-hand-holding-heart");
+    if(p.money<=0){elimP(pid);}
+    G.turnPhase="continue";
+  }
+  processing=false;syncNow();
+}
+
+function buyVol(pid,spaceId){
+  if(spaceId===undefined||spaceId===null)return;
+  spaceId=parseInt(spaceId);
+  if(!canBuyVol(pid,spaceId)){addLog("No se puede mejorar ahora.");syncNow();return;}
+  var sp=BOARD[spaceId],p=G.players[pid];
+  var cost=VOL_COST[sp.group];
+  p.money-=cost;
+  G.volunteers[spaceId]=(G.volunteers[spaceId]||0)+1;
+  var lv=G.volunteers[spaceId];
+  var label=lv<=4?lv+" Voluntario"+(lv>1?"s":""):"ONG de Apoyo ⭐";
+  addLog(p.name+' mejora "'+sp.name+'" → '+label+' (costo $'+cost+')',true);
+  showToast("¡"+sp.short+": "+label+"!","fa-user-plus");
+  syncNow();
+}
+
+function buyProp(pid){
+  var p=G.players[pid],sp=BOARD[G.currentSpace];
+  if(!sp){G.turnPhase="continue";syncNow();return;}
+  p.money-=sp.price;
+  G.properties[G.currentSpace]=pid;
+  p.properties.push(G.currentSpace);
+  if(G.volunteers[G.currentSpace]===undefined)G.volunteers[G.currentSpace]=0;
+  addLog(p.name+' compra "'+sp.name+'" por $'+sp.price,true);
+  showToast("¡Compraste: "+sp.name+"!","fa-shopping-cart");
+  if(p.money<0)p.money=0;
+  G.turnPhase="continue";
+  syncNow();
+}
+
+function payTax(pid,amt){
+  var p=G.players[pid];
+  var real=Math.min(amt,p.money);
+  p.money-=real;G.communityFund+=real;
+  addLog(p.name+" paga Impuesto $"+real+" al Fondo Comunitario.");
+  showToast("Impuesto: -$"+real,"fa-file-invoice-dollar");
+  if(p.money<=0)elimP(pid);
+  G.turnPhase="continue";syncNow();
+}
+
+function payReflex(pid){
+  var p=G.players[pid];
+  var real=Math.min(50,p.money);
+  p.money-=real;G.communityFund+=real;
+  var q=REFLEXION_Q[Math.floor(Math.random()*REFLEXION_Q.length)];
+  addLog(p.name+" reflexiona y dona $"+real+" al Fondo.");
+  showToast("Reflexión: -$"+real+" al Fondo","fa-brain");
+  // Mostrar pregunta de reflexión en modal
+  var mc=document.getElementById("modal-content");
+  mc.innerHTML='<h2><i class="fas fa-brain" style="margin-right:8px;color:#e76f51"></i>Área de Reflexión</h2>'+
+    '<p style="color:var(--accent);font-weight:700">'+p.name+' dona $'+real+' al Fondo Comunitario.</p>'+
+    '<div class="reflection-question">'+q+'</div>'+
+    '<p style="font-size:13px;color:var(--muted)">Comparte tu respuesta en voz alta con el grupo antes de continuar.</p>'+
+    '<button class="btn btn-primary" onclick="closeModalNoCard()" style="margin-top:12px;width:100%"><i class="fas fa-check"></i> Continuar</button>';
+  document.getElementById("modal").classList.add("active");
+  if(p.money<=0)elimP(pid);
+  G.turnPhase="continue";
+  processing=false;syncNow();
+}
+
+window.closeModalNoCard=function(){document.getElementById("modal").classList.remove("active");};
+
+function donateServ(pid){var p=G.players[pid];var real=Math.min(50,p.money);p.money-=real;G.communityFund+=real;addLog(p.name+" dona $"+real+" al Fondo (Día de Servicio).",true);showToast("¡Donación voluntaria: -$"+real+"!","fa-hand-holding-heart");if(p.money<=0)elimP(pid);endTurn();}
+
+function sendJail(pid){var p=G.players[pid];p.inJail=true;p.jailTurns=0;p.position=10;G.doublesCount=0;addLog(p.name+" va a la Cárcel del Individualismo!",true);showToast("¡Cárcel del Individualismo!","fa-lock");G.turnPhase="continue";syncNow();}
+
+function payJail(pid){var p=G.players[pid];if(p.money<150){addLog(p.name+" no tiene fondos para pagar. Sale igual.");} else{p.money-=150;}p.inJail=false;p.jailTurns=0;addLog(p.name+" paga $150 y sale de la Cárcel.");showToast("Saliste de la Cárcel -$150","fa-unlock");G.turnPhase="roll";syncNow();}
+
+// ── TARJETAS ─────────────────────────────────────────────────────────────────
+function drawC(pid,deck){
+  var card;
+  if(deck==="cofre"){card=CC[G.cofreIndex];G.cofreIndex=(G.cofreIndex+1)%CC.length;}
+  else{card=CF[G.faltaIndex];G.faltaIndex=(G.faltaIndex+1)%CF.length;}
+  showCardM(card,deck,pid);
+  pendingCard={card:card,pid:pid};
+  processing=false;syncNow();
+}
+
+function showCardM(card,deck,pid){
+  var f=deck==="falta";
+  var mc=document.getElementById("modal-content");
+  // Calcular efecto visible
+  var efectoTexto="";
+  var p=G.players[pid];
+  if(card.action==="gain")efectoTexto="+$"+card.amount+" Generosipoints";
+  else if(card.action==="lose")efectoTexto="-$"+card.amount+" Generosipoints";
+  else if(card.action==="fund")efectoTexto="-$"+card.amount+" al Fondo Comunitario";
+  else if(card.action==="collect_all")efectoTexto="Cada jugador te da $"+card.amount;
+  else if(card.action==="pay_all")efectoTexto="Pagas $"+card.amount+" a cada jugador";
+  else if(card.action==="goto")efectoTexto="Muévete a: "+BOARD[card.position].name;
+  else if(card.action==="jail")efectoTexto="¡Vas a la Cárcel del Individualismo!";
+  else if(card.action==="move_back")efectoTexto="Retrocede "+card.amount+" casillas";
+  else if(card.action==="move_fwd")efectoTexto="Avanza "+card.amount+" casillas";
+  else if(card.action==="lose_turn")efectoTexto="Pierdes tu próximo turno";
+
+  mc.innerHTML="<h2>"+(f?'<i class="fas fa-times-circle" style="color:#e63946"></i> Falta de Generosidad':'<i class="fas fa-box-open" style="color:#2a9d8f"></i> Cofre Comunitario')+'</h2>'+
+    '<div class="card-display '+(f?"falta":"cofre")+'">'+
+    '<div class="card-title">'+card.title+'</div>'+
+    '<div class="card-text">'+card.text+'</div>'+
+    (efectoTexto?'<div class="card-effect">'+efectoTexto+'</div>':'')+
+    '</div>'+
+    (myId===pid?'<button class="btn btn-primary" onclick="closeModal()" style="margin-top:8px;width:100%"><i class="fas fa-check"></i> Aceptar y aplicar</button>':
+    '<p style="font-size:13px;color:var(--muted)">Esperando que '+p.name+' acepte la tarjeta...</p>');
+  document.getElementById("modal").classList.add("active");
+}
+
+window.closeModal=function(){
+  document.getElementById("modal").classList.remove("active");
+  if(pendingCard){var pc=pendingCard;pendingCard=null;processing=true;applyC(pc.card,pc.pid);}
+};
+
+function applyC(card,pid){
+  var p=G.players[pid],et="";
+  if(card.action==="gain"){p.money+=card.amount;et="+$"+card.amount;}
+  else if(card.action==="lose"){p.money-=card.amount;et="-$"+card.amount;if(p.money<0){p.money=0;elimP(pid);}}
+  else if(card.action==="fund"){var r=Math.min(card.amount,p.money);p.money-=r;G.communityFund+=r;et="-$"+r+" al Fondo";if(p.money<=0)elimP(pid);}
+  else if(card.action==="collect_all"){var tc=0;for(var i=0;i<G.players.length;i++){var o=G.players[i];if(o.id!==pid&&!o.eliminated){var a=Math.min(card.amount,o.money);o.money-=a;p.money+=a;tc+=a;if(o.money<=0)elimP(o.id);}}et="+$"+tc+" de los demás";}
+  else if(card.action==="pay_all"){var pd=0;for(var j=0;j<G.players.length;j++){var o2=G.players[j];if(o2.id!==pid&&!o2.eliminated){var a2=Math.min(card.amount,p.money);if(a2>0){o2.money+=a2;p.money-=a2;pd+=a2;}}}et="-$"+pd+" a los demás";if(p.money<=0)elimP(pid);}
+  else if(card.action==="goto"){
+    if(card.collectGO){
+      // Avanzar paso a paso contando GO
+      var cur=p.position;
+      while(cur!==card.position){
+        cur=(cur+1)%40;
+        if(cur===0){p.money+=200;addLog(p.name+" pasa por GO: +$200",true);showToast("+$200 por pasar el Punto de Partida!","fa-heart");}
+      }
+    }
+    p.position=card.position;
+    et="→ "+BOARD[card.position].name;
+  }
+  else if(card.action==="jail"){sendJail(pid);et="Ir a la Cárcel";processing=false;syncNow();return;}
+  else if(card.action==="move_back"){p.position=(p.position-card.amount+40)%40;et="Retrocede "+card.amount;}
+  else if(card.action==="move_fwd"){
+    for(var k=0;k<card.amount;k++){p.position=(p.position+1)%40;if(p.position===0){p.money+=200;addLog(p.name+" pasa por GO: +$200",true);}}
+    et="Avanza "+card.amount;
+  }
+  else if(card.action==="lose_turn"){G.skipNextTurn[pid]=true;et="Pierde próximo turno";}
+  addLog(p.name+": "+card.title+" ("+et+")",true);
+  G.turnPhase="continue";processing=false;syncNow();
+}
+
+// ── SUBASTAS ─────────────────────────────────────────────────────────────────
+function startAuc(ppid){
+  var sp=BOARD[G.currentSpace];
+  if(!sp){G.turnPhase="continue";syncNow();return;}
+  G.auction={propertyId:G.currentSpace,currentBid:Math.floor(sp.price/2),currentBidder:-1,passed:[],timer:null};
+  G.turnPhase="auction";
+  addLog("Subasta: "+sp.name+" (mínimo: $"+G.auction.currentBid+")",true);
+  showToast("¡Subasta: "+sp.name+"!","fa-gavel");
+  G.auction.timer=setTimeout(function(){finAuc();},25000);
+  syncNow();
+}
+function aucBid(pid){
+  if(!G.auction||G.auction.passed.indexOf(pid)!==-1)return;
+  var p=G.players[pid];
+  if(p.money<G.auction.currentBid+10){addLog(p.name+" no tiene fondos para pujar.");return;}
+  clearTimeout(G.auction.timer);
+  G.auction.currentBid+=10;G.auction.currentBidder=pid;
+  addLog(G.players[pid].name+" puja $"+G.auction.currentBid);
+  G.auction.timer=setTimeout(function(){finAuc();},15000);
+  syncNow();
+}
+function aucPass(pid){
+  if(!G.auction)return;
+  if(G.auction.passed.indexOf(pid)===-1)G.auction.passed.push(pid);
+  addLog(G.players[pid].name+" pasa en la subasta.");
+  var act=[];for(var i=0;i<G.players.length;i++){if(!G.players[i].eliminated&&G.auction.passed.indexOf(G.players[i].id)===-1)act.push(G.players[i]);}
+  if(act.length===0){clearTimeout(G.auction.timer);finAuc();return;}
+  syncNow();
+}
+function finAuc(){
+  if(!G.auction)return;
+  clearTimeout(G.auction.timer);
+  var a=G.auction,sp=BOARD[a.propertyId];
+  if(a.currentBidder>=0){
+    var p=G.players[a.currentBidder];
+    p.money-=a.currentBid;G.properties[a.propertyId]=a.currentBidder;p.properties.push(a.propertyId);
+    addLog(p.name+' gana subasta de "'+sp.name+'" por $'+a.currentBid,true);
+    showToast(p.name+" gana: "+sp.name+" ($"+a.currentBid+")","fa-gavel");
+    if(p.money<0)p.money=0;
+  }else{addLog("Nadie pujó. "+sp.name+" queda sin dueño.");}
+  G.auction=null;endTurn();
+}
+
+// ── FIN DE TURNO ─────────────────────────────────────────────────────────────
+function endTurn(){
+  var p=G.players[G.currentPlayer];
+  // Si sacó dobles y no está en cárcel, turno extra
+  if(G.doublesCount>0&&G.doublesCount<3&&!p.eliminated&&!p.inJail){
+    addLog(p.name+" ¡Dobles! Turno extra.",true);
+    showToast("¡Turno extra por dobles!","fa-dice");
+    G.turnPhase="roll";G.doublesCount=0;processing=false;syncNow();return;
+  }
+  G.doublesCount=0;
+  // Siguiente jugador
+  var next=nextActive(G.currentPlayer);
+  G.currentPlayer=next;
+  // Verificar si el siguiente jugador pierde turno
+  if(G.skipNextTurn[next]){
+    delete G.skipNextTurn[next];
+    addLog(G.players[next].name+" pierde su turno (Reto de Empatía).");
+    var again=nextActive(next);
+    if(again===next){G.currentPlayer=next;}// Todos pierde turno: no puede pasar
+    else{G.currentPlayer=again;}
+  }
+  addLog("Turno de: "+G.players[G.currentPlayer].name,true);
+  G.turnPhase="roll";processing=false;syncNow();
+}
+
+function elimP(pid){
+  var p=G.players[pid];if(p.eliminated)return;
+  p.eliminated=true;p.money=0;
+  addLog(p.name+" eliminado (sin Generosipoints).",true);
+  showToast(p.name+" ha sido eliminado.","fa-user-slash");
+  for(var i=0;i<p.properties.length;i++){delete G.properties[p.properties[i]];delete G.volunteers[p.properties[i]];}
+  p.properties=[];
+  var act=[];for(var j=0;j<G.players.length;j++){if(!G.players[j].eliminated)act.push(G.players[j]);}
+  if(act.length<=1){endGame();return;}
+  if(G.currentPlayer===pid)endTurn();
+}
+
+function checkLaps(){
+  var d=true;
+  for(var i=0;i<G.players.length;i++){if(!G.players[i].eliminated&&G.players[i].laps<G.targetLaps){d=false;break;}}
+  if(d)endGame();
+}
+
+function endGame(){
+  G.phase="ended";processing=false;
+  if(G.timerInterval)clearInterval(G.timerInterval);
+  syncNow();showEndGame();
+}
+
+function showEndGame(){
+  // Distribuir Fondo Comunitario
+  var act=[];for(var i=0;i<G.players.length;i++){if(!G.players[i].eliminated)act.push(G.players[i]);}
+  if(act.length>=1&&G.communityFund>0){
+    var minMoney=Infinity,minP=null;
+    for(var j=0;j<act.length;j++){if(act[j].money<minMoney){minMoney=act[j].money;minP=act[j];}}
+    if(minP&&act.length>1){
+      var half=Math.floor(G.communityFund/2);
+      var rest=G.communityFund-half;
+      var others=[];for(var k=0;k<act.length;k++){if(act[k].id!==minP.id)others.push(act[k]);}
+      var share=others.length>0?Math.floor(rest/others.length):0;
+      minP.money+=half;
+      for(var m=0;m<others.length;m++)others[m].money+=share;
+      addLog("Fondo ($"+G.communityFund+"): "+minP.name+" recibe $"+half+"; los demás $"+share+" c/u.",true);
+    }else if(minP){
+      minP.money+=G.communityFund;
+      addLog("Fondo ($"+G.communityFund+") completo a: "+minP.name,true);
+    }
+    G.communityFund=0;
+  }
+  var sorted=G.players.slice().sort(function(a,b){return b.money-a.money;});
+  var mc=document.getElementById("modal-content"),h="<h2>🏆 Fin del Juego</h2><p style='margin-bottom:4px'>Resultados finales (incluyendo distribución del Fondo Comunitario):</p><div class=\"end-results\">";
+  for(var n=0;n<sorted.length;n++){
+    var pl=sorted[n],f=n===0;
+    h+='<div class="rank'+(f?" first":"")+'">'+(f?"🥇":n===1?"🥈":n===2?"🥉":"")+'<div class="rank-num">'+(n+1)+"</div><div style=\"width:14px;height:14px;border-radius:50%;background:"+pl.color+';flex-shrink:0"></div><div style="flex:1">'+pl.name+(pl.id===myId?" (Tú)":"")+(pl.eliminated?" · Eliminado":"")+'</div><div style="font-weight:700;color:'+(f?"var(--accent)":"var(--muted)")+'">$'+pl.money+"</div></div>";
+  }
+  h+="</div>";
+  if(sorted[0]&&sorted[0].id===myId)h+='<p style="color:var(--accent);font-weight:700;margin-top:14px"><i class="fas fa-trophy"></i> ¡Felicidades! Eres el más generoso del grupo.</p>';
+  else if(sorted[0])h+='<p style="color:var(--muted);margin-top:14px"><i class="fas fa-star"></i> '+sorted[0].name+' es el jugador más generoso!</p>';
+  h+='<div style="margin-top:20px;padding:16px;background:rgba(212,160,23,.08);border-radius:10px;text-align:left"><p style="font-family:Fredoka,sans-serif;color:var(--accent);font-size:15px;margin-bottom:8px"><i class="fas fa-comments"></i> Preguntas para reflexionar en grupo:</p><p style="font-size:13px;color:#c0c0b0;line-height:1.7">• ¿Qué estrategias usaste para ganar Generosipoints?<br>• ¿Cuándo fue más difícil ser generoso en el juego?<br>• ¿Qué aprendiste hoy sobre dar sin esperar nada a cambio?</p></div>';
+  h+='<button class="btn btn-primary" onclick="location.reload()" style="margin-top:16px;width:100%"><i class="fas fa-redo"></i> Volver al Inicio</button>';
+  mc.innerHTML=h;document.getElementById("modal").classList.add("active");renderAll();
+}
+
+window.switchTab=function(t,el){var bs=document.querySelectorAll(".tab-btn");for(var i=0;i<bs.length;i++)bs[i].classList.remove("active");el.classList.add("active");document.getElementById("tab-create").style.display=t==="create"?"block":"none";document.getElementById("tab-join").style.display=t==="join"?"block":"none";};
+
+renderDie(document.getElementById("die1"),1);renderDie(document.getElementById("die2"),1);
+window.addEventListener("beforeunload",function(){if(peer)peer.destroy();});
+
+})();
+</script>
+</body>
+</html>
