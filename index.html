@@ -121,6 +121,9 @@ h1,h2,h3,.fredoka{font-family:'Fredoka',sans-serif}
 @keyframes tokenPulse{0%,100%{box-shadow:0 2px 8px rgba(0,0,0,.5)}50%{box-shadow:0 0 16px 5px var(--accent)}}
 #sidebar{width:298px;min-width:298px;background:var(--sidebar);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
 /* ── VOLUNTARIOS / ONG en casilla ── */
+.owner-badge{position:absolute;top:2px;right:2px;width:13px;height:13px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;font-size:7px;font-weight:800;color:#fff;z-index:6;line-height:1}
+.space.property.owned{filter:saturate(.55) brightness(.92);}
+.space.property.owned .sn,.space.property.owned .sp{opacity:.7;}
 .vols{display:flex;gap:2px;justify-content:center;flex-wrap:wrap;margin-top:2px;z-index:2;position:relative}
 .vol-pip{width:7px;height:7px;border-radius:50%;background:#27ae60;border:1px solid rgba(0,0,0,.2);flex-shrink:0}
 .vol-pip.ong{background:var(--accent);border-radius:2px;}
@@ -136,6 +139,7 @@ h1,h2,h3,.fredoka{font-family:'Fredoka',sans-serif}
 .prop-item .pi-vols .vp{width:9px;height:9px;border-radius:50%;background:#27ae60;border:1px solid rgba(255,255,255,.2)}
 .prop-item .pi-vols .vp.ong{background:var(--accent);border-radius:2px}
 .prop-item .pi-buy-vol{background:rgba(39,174,96,.15);border:1px solid rgba(39,174,96,.3);color:#27ae60;padding:3px 8px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap}
+.prop-item .pi-sell{background:rgba(230,57,70,.12);border:1px solid rgba(230,57,70,.3);color:#c0392b;padding:3px 8px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap}
 .prop-item .pi-buy-vol:hover{background:rgba(39,174,96,.25)}
 .prop-item .pi-buy-vol:disabled{opacity:.35;cursor:not-allowed}
 /* prop-dots en sidebar más visibles */
@@ -144,6 +148,13 @@ h1,h2,h3,.fredoka{font-family:'Fredoka',sans-serif}
 .prop-dot:hover{transform:scale(1.3)}
 .sb-section{padding:12px 16px;border-bottom:1px solid var(--border)}
 .sb-section h3{font-family:'Fredoka',sans-serif;font-size:12px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.dice-modal-overlay{position:fixed;inset:0;background:rgba(10,10,20,.6);backdrop-filter:blur(3px);z-index:3000;display:none;align-items:center;justify-content:center}
+.dice-modal-overlay.active{display:flex}
+.dice-modal-inner{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:28px 40px 32px;text-align:center;box-shadow:0 15px 50px rgba(0,0,0,.5);min-width:220px}
+.dice-modal-player{font-size:15px;font-weight:700;margin-bottom:16px;color:var(--text)}
+.dice-area-big{display:flex;gap:20px;justify-content:center;align-items:center}
+.die-big{width:84px;height:84px;padding:12px}
+.dice-modal-result{margin-top:14px;font-size:14px;font-weight:600;color:var(--accent);min-height:18px}
 .dice-area{display:flex;gap:16px;justify-content:center;align-items:center;padding:8px 0}
 .die{width:52px;height:52px;background:#fff;border-radius:10px;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);padding:7px;box-shadow:0 3px 12px rgba(0,0,0,.3)}
 .die.rolling{animation:diceRoll .5s ease-out}
@@ -244,7 +255,7 @@ h1,h2,h3,.fredoka{font-family:'Fredoka',sans-serif}
 </div>
 <div id="sidebar">
 <div class="sb-section" id="sb-timer" style="display:none"><div class="timer-display" id="timer-text">30:00</div></div>
-<div class="sb-section"><h3><i class="fas fa-dice"></i> Dados</h3><div class="dice-area"><div class="die" id="die1"></div><div class="die" id="die2"></div></div><div id="dice-result" style="text-align:center;font-size:12px;color:var(--muted);min-height:16px"></div></div>
+
 <div class="sb-section"><h3><i class="fas fa-hand-pointer"></i> Acción</h3><div id="action-content"><div class="waiting-msg"><i class="fas fa-hourglass-half"></i>Espere su turno...</div></div></div>
 <div class="sb-section"><h3><i class="fas fa-users"></i> Jugadores</h3><div id="players-list"></div></div>
 <div class="sb-section"><h3><i class="fas fa-hand-holding-heart"></i> Fondo Comunitario</h3><div style="text-align:center;font-size:20px;font-weight:700;color:var(--accent);font-family:'Fredoka',sans-serif" id="fund-display">$0</div></div>
@@ -253,6 +264,13 @@ h1,h2,h3,.fredoka{font-family:'Fredoka',sans-serif}
 </div>
 
 <div class="modal-overlay" id="modal"><div class="modal" id="modal-content"></div></div>
+<div class="dice-modal-overlay" id="dice-modal">
+  <div class="dice-modal-inner">
+    <div class="dice-modal-player" id="dice-modal-player"></div>
+    <div class="dice-area-big"><div class="die die-big" id="mdie1"></div><div class="die die-big" id="mdie2"></div></div>
+    <div class="dice-modal-result" id="dice-modal-result"></div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -398,20 +416,37 @@ var RULES_HTML='<div class="rules-content">'+
 '</div>';
 
 // ── ESTADO DEL JUEGO ────────────────────────────────────────────────────────
-var G={phase:"lobby",players:[],properties:{},volunteers:{},communityFund:0,currentPlayer:0,turnPhase:"roll",dice:[0,0],doublesCount:0,cofreIndex:0,faltaIndex:0,log:[],endCondition:"timer-30",timeRemaining:1800,targetLaps:0,gameStartTime:0,timerInterval:null,auction:null,currentSpace:0,skipNextTurn:{}};
+var G={phase:"lobby",players:[],properties:{},volunteers:{},communityFund:0,currentPlayer:0,turnPhase:"roll",dice:[0,0],doublesCount:0,cofreIndex:0,faltaIndex:0,log:[],endCondition:"timer-30",timeRemaining:1800,targetLaps:0,gameStartTime:0,timerInterval:null,auction:null,currentSpace:0,skipNextTurn:{},pendingCard:null,pendingReflection:null,pendingTrade:null,lastMoveType:"forward"};
 var localSnap={players:[],currentPlayer:-1,turnPhase:"",dice:[0,0],logLen:0,communityFund:0,auction:null};
-var myId=-1,isHost=false,peer=null,hostConn=null,roomCode="",connMap={},connReverseMap=new WeakMap(),processing=false,pendingCard=null;
+var myId=-1,isHost=false,peer=null,hostConn=null,roomCode="",connMap={},connReverseMap=new WeakMap(),processing=false;
 
 // ── UTILIDADES ───────────────────────────────────────────────────────────────
 function genCode(){var c="ABCDEFGHJKLMNPQRSTUVWXYZ23456789",r="";for(var i=0;i<4;i++)r+=c[Math.floor(Math.random()*c.length)];return r;}
 function showToast(m,icon){var t=document.getElementById("toast");t.innerHTML=(icon?'<i class="fas '+icon+'"></i>':'')+m;t.classList.add("show");setTimeout(function(){t.classList.remove("show");},3200);}
-function addLog(m,imp){G.log.push({msg:m,imp:!!imp});if(G.log.length>100)G.log.shift();renderLog();}
+function addLog(m,imp,toast){G.log.push({msg:m,imp:!!imp,toast:toast||null});if(G.log.length>100)G.log.shift();renderLog();}
+var lastToastLen=null;
+function processToasts(){
+  if(lastToastLen===null){lastToastLen=G.log.length;return;}
+  if(G.log.length>lastToastLen){
+    for(var i=lastToastLen;i<G.log.length&&i<G.log.length;i++){
+      var e=G.log[i];
+      if(e&&e.toast){
+        var t=e.toast,text;
+        if(t.pid===myId)text=t.you;
+        else if(t.pid2!==undefined&&t.pid2===myId)text=t.you2;
+        else{var p=G.players[t.pid];text=(t.other||"").split("{name}").join(p?p.name:"");}
+        if(text)showToast(text,t.icon);
+      }
+    }
+  }
+  lastToastLen=G.log.length;
+}
 function syncNow(){if(isHost)broadcastState();renderAll();}
 function getSpacePos(i){if(i<=10)return{r:11,c:i+1,side:"bottom",lr:false};if(i<=19)return{r:11-(i-10),c:11,side:"right",lr:true};if(i<=30)return{r:1,c:11-(i-20),side:"top",lr:false};return{r:i-29,c:1,side:"left",lr:true};}
 function isCorner(i){return i===0||i===10||i===20||i===30;}
 function nextActive(f){var n=(f+1)%G.players.length,s=0;while(G.players[n].eliminated&&s<G.players.length){n=(n+1)%G.players.length;s++;}return n;}
 
-function getSS(){return{phase:G.phase,players:G.players.map(function(p){return{id:p.id,name:p.name,color:p.color,money:p.money,position:p.position,inJail:p.inJail,jailTurns:p.jailTurns,properties:p.properties.slice(),eliminated:p.eliminated,laps:p.laps};}),properties:JSON.parse(JSON.stringify(G.properties)),volunteers:JSON.parse(JSON.stringify(G.volunteers)),communityFund:G.communityFund,currentPlayer:G.currentPlayer,turnPhase:G.turnPhase,dice:G.dice.slice(),doublesCount:G.doublesCount,cofreIndex:G.cofreIndex,faltaIndex:G.faltaIndex,log:G.log.map(function(l){return{msg:l.msg,imp:l.imp};}),endCondition:G.endCondition,timeRemaining:G.timeRemaining,targetLaps:G.targetLaps,gameStartTime:G.gameStartTime,currentSpace:G.currentSpace,skipNextTurn:JSON.parse(JSON.stringify(G.skipNextTurn)),auction:G.auction?{propertyId:G.auction.propertyId,currentBid:G.auction.currentBid,currentBidder:G.auction.currentBidder,passed:G.auction.passed.slice(),timer:null}:null};}
+function getSS(){return{phase:G.phase,players:G.players.map(function(p){return{id:p.id,name:p.name,color:p.color,money:p.money,position:p.position,inJail:p.inJail,jailTurns:p.jailTurns,properties:p.properties.slice(),eliminated:p.eliminated,laps:p.laps};}),properties:JSON.parse(JSON.stringify(G.properties)),volunteers:JSON.parse(JSON.stringify(G.volunteers)),communityFund:G.communityFund,currentPlayer:G.currentPlayer,turnPhase:G.turnPhase,dice:G.dice.slice(),doublesCount:G.doublesCount,cofreIndex:G.cofreIndex,faltaIndex:G.faltaIndex,log:G.log.map(function(l){return{msg:l.msg,imp:l.imp,toast:l.toast||null};}),endCondition:G.endCondition,timeRemaining:G.timeRemaining,targetLaps:G.targetLaps,gameStartTime:G.gameStartTime,currentSpace:G.currentSpace,skipNextTurn:JSON.parse(JSON.stringify(G.skipNextTurn)),pendingCard:G.pendingCard?{card:G.pendingCard.card,deck:G.pendingCard.deck,pid:G.pendingCard.pid}:null,pendingReflection:G.pendingReflection?{pid:G.pendingReflection.pid,amount:G.pendingReflection.amount,question:G.pendingReflection.question}:null,pendingTrade:G.pendingTrade?{spaceId:G.pendingTrade.spaceId,fromPid:G.pendingTrade.fromPid,toPid:G.pendingTrade.toPid,price:G.pendingTrade.price}:null,lastMoveType:G.lastMoveType||"forward",auction:G.auction?{propertyId:G.auction.propertyId,currentBid:G.auction.currentBid,currentBidder:G.auction.currentBidder,passed:G.auction.passed.slice(),timer:null}:null};}
 
 function broadcastState(){var s=getSS(),k=Object.keys(connMap);for(var i=0;i<k.length;i++){var c=connMap[k[i]];if(c&&c.open){try{c.send({type:"state",data:s});}catch(e){}}}
 }
@@ -437,7 +472,7 @@ window.createRoom=async function(){
 function handleDC(cn){var pid=connReverseMap.get(cn);if(pid!==undefined){delete connMap[pid];connReverseMap.delete(cn);if(G.players[pid]){G.players[pid].eliminated=true;addLog(G.players[pid].name+" desconectado.",true);if(G.phase==="playing"&&G.currentPlayer===pid)endTurn();syncNow();}}}
 
 function handleCM(msg,cn){
-  if(msg.type==="join"){var pid=G.players.length;if(pid>=6){cn.send({type:"error",msg:"Sala llena"});return;}G.players.push({id:pid,name:msg.name,color:PC[pid],money:INIT_MONEY,position:0,inJail:false,jailTurns:0,properties:[],eliminated:false,laps:0});connMap[pid]=cn;connReverseMap.set(cn,pid);cn.send({type:"assigned",pid:pid,color:PC[pid]});addLog(msg.name+" se unió.",true);renderHPL();syncNow();}
+  if(msg.type==="join"){var pid=G.players.length;if(pid>=4){cn.send({type:"error",msg:"Sala llena (máximo 4 jugadores)"});return;}G.players.push({id:pid,name:msg.name,color:PC[pid],money:INIT_MONEY,position:0,inJail:false,jailTurns:0,properties:[],eliminated:false,laps:0});connMap[pid]=cn;connReverseMap.set(cn,pid);cn.send({type:"assigned",pid:pid,color:PC[pid]});addLog(msg.name+" se unió.",true);renderHPL();syncNow();}
   if(msg.type==="action")processAction(msg.action,msg.pid,msg.data);
 }
 function renderHPL(){var el=document.getElementById("player-list-host"),h="";for(var i=0;i<G.players.length;i++){var p=G.players[i];h+='<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px"><div style="width:12px;height:12px;border-radius:50%;background:'+p.color+'"></div>'+p.name+(p.id===0?" (Host)":"")+"</div>";}el.innerHTML=h;document.getElementById("btn-start").disabled=G.players.length<2;}
@@ -458,25 +493,67 @@ window.joinRoom=async function(){
 
 function applyState(d){
   var wasL=G.phase==="lobby";
-  var prevSnap=JSON.stringify(localSnap);
-  G.phase=d.phase;G.players=d.players;G.properties=d.properties;G.volunteers=d.volunteers||{};G.communityFund=d.communityFund;G.currentPlayer=d.currentPlayer;G.turnPhase=d.turnPhase;G.dice=d.dice;G.doublesCount=d.doublesCount;G.cofreIndex=d.cofreIndex;G.faltaIndex=d.faltaIndex;G.log=d.log;G.endCondition=d.endCondition;G.timeRemaining=d.timeRemaining;G.targetLaps=d.targetLaps;G.gameStartTime=d.gameStartTime;G.auction=d.auction;G.currentSpace=d.currentSpace||0;G.skipNextTurn=d.skipNextTurn||{};
-  var newSnap={players:G.players.map(function(p){return{position:p.position,money:p.money,inJail:p.inJail};}),currentPlayer:G.currentPlayer,turnPhase:G.turnPhase,dice:G.dice.slice(),logLen:G.log.length,communityFund:G.communityFund,auction:G.auction?JSON.stringify(G.auction):null};
+  var prevSnap=localSnap;
+  var prevSnapStr=JSON.stringify(prevSnap);
+  G.phase=d.phase;G.players=d.players;G.properties=d.properties;G.volunteers=d.volunteers||{};G.communityFund=d.communityFund;G.currentPlayer=d.currentPlayer;G.turnPhase=d.turnPhase;G.dice=d.dice;G.doublesCount=d.doublesCount;G.cofreIndex=d.cofreIndex;G.faltaIndex=d.faltaIndex;G.log=d.log;G.endCondition=d.endCondition;G.timeRemaining=d.timeRemaining;G.targetLaps=d.targetLaps;G.gameStartTime=d.gameStartTime;G.auction=d.auction;G.currentSpace=d.currentSpace||0;G.skipNextTurn=d.skipNextTurn||{};G.pendingCard=d.pendingCard||null;G.pendingReflection=d.pendingReflection||null;G.pendingTrade=d.pendingTrade||null;G.lastMoveType=d.lastMoveType||"forward";
+  var newSnap={players:G.players.map(function(p){return{position:p.position,money:p.money,inJail:p.inJail};}),currentPlayer:G.currentPlayer,turnPhase:G.turnPhase,dice:G.dice.slice(),logLen:G.log.length,communityFund:G.communityFund,auction:G.auction?JSON.stringify(G.auction):null,lastMoveType:G.lastMoveType};
   var newSnapStr=JSON.stringify(newSnap);
-  if(G.phase==="playing"&&wasL){document.getElementById("lobby").style.display="none";document.getElementById("game").classList.add("active");buildBoard();if(G.endCondition.startsWith("timer"))document.getElementById("sb-timer").style.display="block";localSnap=newSnap;prevSnap=newSnapStr;renderAll();return;}
+  if(G.phase==="playing"&&wasL){
+    document.getElementById("lobby").style.display="none";document.getElementById("game").classList.add("active");buildBoard();
+    if(G.endCondition.startsWith("timer"))document.getElementById("sb-timer").style.display="block";
+    var mc=document.getElementById("modal-content");mc.innerHTML='<h2><i class="fas fa-book" style="margin-right:8px"></i>Reglamento de Generosopoly</h2>'+RULES_HTML+'<div style="margin-top:20px"><button class="btn btn-primary" onclick="closeModal()" style="width:100%"><i class="fas fa-check"></i> He leído las reglas - ¡A jugar!</button></div>';document.getElementById("modal").classList.add("active");
+    localSnap=newSnap;renderAll();return;
+  }
   if(G.phase==="ended"){showEndGame();renderAll();return;}
-  if(prevSnap!==newSnapStr&&!wasL){clientDetectChanges(prevSnap,newSnap);}
+  if(prevSnapStr!==newSnapStr&&!wasL){try{clientDetectChanges(prevSnap,newSnap);}catch(e){}}
   localSnap=newSnap;renderAll();
 }
 
 function clientDetectChanges(prev,curr){
-  if(prev.dice[0]!==curr.dice[0]||prev.dice[1]!==curr.dice[1]){if(curr.dice[0]>0&&curr.dice[1]>0)clientAnimateDice(curr.dice[0],curr.dice[1]);}
-  for(var i=0;i<Math.min(prev.players.length,curr.players.length);i++){if(prev.players[i].position!==curr.players[i].position&&!curr.players[i].eliminated){clientAnimateMove(G.players[i].id,prev.players[i].position,curr.players[i].position);break;}}
-  if(curr.logLen>prev.logLen){for(var j=prev.logLen;j<curr.logLen&&j<G.log.length;j++){var msg=G.log[j].msg;if(msg.indexOf("+$200")!==-1)showToast("+$200 por pasar el Punto de Partida!","fa-heart");if(msg.indexOf("Cárcel")!==-1&&msg.indexOf("va a")!==-1)showToast("¡Cárcel del Individualismo!","fa-lock");if(msg.indexOf("sale de la Cárcel")!==-1)showToast("¡Salió de la Cárcel!","fa-unlock");if(msg.indexOf("compra ")!==-1){var nm=msg.split("compra ")[1];if(nm)nm=nm.split(" por")[0];if(nm)showToast("Compró: "+nm.trim(),"fa-shopping-cart");}if(msg.indexOf("aporta $")!==-1)showToast("Aporte pagado","fa-hand-holding-heart");if(msg.indexOf("Impuesto")!==-1)showToast("Impuesto pagado","fa-file-invoice-dollar");if(msg.indexOf("reflexiona")!==-1)showToast("Reflexión: -$50 al Fondo","fa-brain");if(msg.indexOf("Subasta:")!==-1&&msg.indexOf("iniciada")!==-1)showToast("¡Subasta iniciada!","fa-gavel");if(msg.indexOf("gana subasta")!==-1)showToast("Subasta resuelta","fa-gavel");if(msg.indexOf("eliminado")!==-1)showToast("Jugador eliminado","fa-user-slash");if(msg.indexOf("dona $50")!==-1)showToast("Donación: -$50","fa-hand-holding-heart");if(msg.indexOf("dobles")!==-1&&msg.indexOf("Turno extra")!==-1)showToast("¡Turno extra por dobles!","fa-dice");}}
+  if(prev.dice[0]!==curr.dice[0]||prev.dice[1]!==curr.dice[1]){if(curr.dice[0]>0&&curr.dice[1]>0){var rp=G.players[curr.currentPlayer];clientAnimateDice(curr.dice[0],curr.dice[1],rp?rp.name:"");}}
+  for(var i=0;i<Math.min(prev.players.length,curr.players.length);i++){if(prev.players[i].position!==curr.players[i].position&&!curr.players[i].eliminated){clientAnimateMove(G.players[i].id,prev.players[i].position,curr.players[i].position,curr.lastMoveType);break;}}
+  // (los avisos de notificación ahora se manejan de forma unificada en processToasts(), llamado desde renderAll)
 }
 
-function clientAnimateDice(d1,d2){var e1=document.getElementById("die1"),e2=document.getElementById("die2");e1.classList.add("rolling");e2.classList.add("rolling");document.getElementById("dice-result").textContent="";var c=0,iv=setInterval(function(){renderDie(e1,Math.floor(Math.random()*6)+1);renderDie(e2,Math.floor(Math.random()*6)+1);c++;if(c>8){clearInterval(iv);e1.classList.remove("rolling");e2.classList.remove("rolling");renderDie(e1,d1);renderDie(e2,d2);document.getElementById("dice-result").textContent=(d1===d2?"¡Dobles!":"");}},60);}
+var diceModalTimer=null;
+function showDiceModal(name){
+  document.getElementById("dice-modal-player").textContent=name+" está lanzando los dados...";
+  document.getElementById("dice-modal-result").textContent="";
+  renderDie(document.getElementById("mdie1"),1);renderDie(document.getElementById("mdie2"),1);
+  document.getElementById("dice-modal").classList.add("active");
+}
+function runDiceModalAnimation(d1,d2,onDone){
+  if(diceModalTimer){clearInterval(diceModalTimer);diceModalTimer=null;}
+  var e1=document.getElementById("mdie1"),e2=document.getElementById("mdie2");if(!e1||!e2){if(onDone)onDone();return;}
+  e1.classList.add("rolling");e2.classList.add("rolling");
+  var c=0;
+  diceModalTimer=setInterval(function(){
+    renderDie(e1,Math.floor(Math.random()*6)+1);renderDie(e2,Math.floor(Math.random()*6)+1);c++;
+    if(c>8){
+      clearInterval(diceModalTimer);diceModalTimer=null;
+      e1.classList.remove("rolling");e2.classList.remove("rolling");
+      renderDie(e1,d1);renderDie(e2,d2);
+      document.getElementById("dice-modal-result").textContent=(d1===d2?"¡Dobles!":"Total: "+(d1+d2));
+      setTimeout(function(){document.getElementById("dice-modal").classList.remove("active");if(onDone)onDone();},800);
+    }
+  },60);
+}
+function clientAnimateDice(d1,d2,name){showDiceModal(name||"Jugador");runDiceModalAnimation(d1,d2);}
+function renderDiceFaces(){}
 
-function clientAnimateMove(pid,fromPos,toPos){var p=G.players[pid];if(!p||p.eliminated)return;p.position=fromPos;renderTokens();var steps=(toPos-fromPos+40)%40,moved=0;function step(){if(moved>=steps){p.position=toPos;renderTokens();return;}p.position=(p.position+1)%40;renderTokens();moved++;setTimeout(step,200);}setTimeout(step,100);}
+function clientAnimateMove(pid,fromPos,toPos,moveType){
+  var p=G.players[pid];if(!p||p.eliminated)return;
+  p.position=fromPos;renderTokens();
+  if(moveType==="instant"){p.position=toPos;renderTokens();return;}
+  var backward=moveType==="backward";
+  var steps=backward?(fromPos-toPos+40)%40:(toPos-fromPos+40)%40,moved=0;
+  function step(){
+    if(moved>=steps){p.position=toPos;renderTokens();return;}
+    p.position=backward?(p.position-1+40)%40:(p.position+1)%40;
+    renderTokens();moved++;setTimeout(step,200);
+  }
+  setTimeout(step,100);
+}
 
 function showRulesModal(){var mc=document.getElementById("modal-content");mc.innerHTML='<h2><i class="fas fa-book" style="margin-right:8px"></i>Reglamento de Generosopoly</h2>'+RULES_HTML+'<button class="btn btn-primary" onclick="closeModal()" style="margin-top:20px;width:100%"><i class="fas fa-check"></i> Entendido</button>';document.getElementById("modal").classList.add("active");}
 window.showRules=showRulesModal;
@@ -490,7 +567,7 @@ window.startGame=function(){
   G.cofreIndex=Math.floor(Math.random()*CC.length);G.faltaIndex=Math.floor(Math.random()*CF.length);
   document.getElementById("lobby").style.display="none";document.getElementById("game").classList.add("active");buildBoard();
   var mc=document.getElementById("modal-content");mc.innerHTML='<h2><i class="fas fa-book" style="margin-right:8px"></i>Reglamento de Generosopoly</h2>'+RULES_HTML+'<div style="margin-top:20px"><button class="btn btn-primary" onclick="closeModal()" style="width:100%"><i class="fas fa-check"></i> He leído las reglas - ¡A jugar!</button></div>';document.getElementById("modal").classList.add("active");
-  addLog("¡El juego ha comenzado!",true);addLog("Turno de: "+G.players[0].name,true);
+  addLog("¡El juego ha comenzado!",true);addLog("Turno de: "+G.players[0].name,true,{pid:0,icon:"fa-flag-checkered",you:"¡Es tu turno!",other:"Turno de {name}"});
   if(G.endCondition.startsWith("timer")){document.getElementById("sb-timer").style.display="block";G.timerInterval=setInterval(function(){G.timeRemaining--;renderTimer();if(G.timeRemaining<=0){clearInterval(G.timerInterval);endGame();}},1000);}
   localSnap={players:G.players.map(function(p){return{position:p.position,money:p.money,inJail:p.inJail};}),currentPlayer:G.currentPlayer,turnPhase:G.turnPhase,dice:G.dice.slice(),logLen:G.log.length,communityFund:G.communityFund,auction:null};
   syncNow();
@@ -530,6 +607,7 @@ function buildBoard(){
       // Propiedad: banda de color + nombre + precio + pips voluntarios
       div.style.color=GC[sp.group];
       div.innerHTML=
+        '<div class="owner-badge" id="owner-'+i+'"></div>'+
         '<div class="cb"></div>'+
         '<div class="sb">'+
           '<span class="sn" style="font-size:'+ns+'">'+sp.short+'</span>'+
@@ -580,9 +658,26 @@ function buildBoard(){
 
 function getTokenOffsets(n){if(n===1)return[{x:50,y:50}];if(n===2)return[{x:35,y:50},{x:65,y:50}];if(n===3)return[{x:25,y:50},{x:50,y:50},{x:75,y:50}];if(n===4)return[{x:30,y:35},{x:70,y:35},{x:30,y:65},{x:70,y:65}];return[{x:25,y:28},{x:75,y:28},{x:25,y:72},{x:75,y:72},{x:50,y:42},{x:50,y:62}];}
 
+function renderPropertyOwnership(){
+  for(var i=0;i<40;i++){
+    var sp=BOARD[i];if(!sp||sp.type!=="property")continue;
+    var el=document.getElementById("space-"+i);if(!el)continue;
+    var badge=document.getElementById("owner-"+i);
+    var ownerId=G.properties[i];
+    var owner=(ownerId!==undefined&&ownerId!==null)?G.players[ownerId]:null;
+    if(owner&&!owner.eliminated){
+      el.classList.add("owned");
+      if(badge){badge.style.display="flex";badge.style.background=owner.color;badge.textContent=owner.name[0].toUpperCase();badge.title=owner.name+" es dueño/a de esta propiedad";}
+    }else{
+      el.classList.remove("owned");
+      if(badge){badge.style.display="none";badge.textContent="";}
+    }
+  }
+}
+
 function renderTokens(){document.querySelectorAll(".token").forEach(function(t){t.remove();});var bs={};for(var i=0;i<G.players.length;i++){var p=G.players[i];if(p.eliminated)continue;if(!bs[p.position])bs[p.position]=[];bs[p.position].push(p);}var sk=Object.keys(bs);for(var s=0;s<sk.length;s++){var pls=bs[sk[s]],se=document.getElementById("space-"+sk[s]);if(!se)continue;var offs=getTokenOffsets(pls.length);for(var j=0;j<pls.length;j++){var pl=pls[j],tk=document.createElement("div");tk.className="token"+(G.currentPlayer===pl.id?" active-token":"");tk.style.background=pl.color;tk.textContent=pl.name[0].toUpperCase();var o=offs[Math.min(j,offs.length-1)];tk.style.left="calc("+o.x+"% - 11px)";tk.style.top="calc("+o.y+"% - 11px)";se.appendChild(tk);}}}
 
-function renderAll(){renderTokens();renderPlayers();renderAction();renderFund();renderLog();renderVols();if(G.endCondition.startsWith("timer")&&G.phase==="playing")renderTimer();}
+function renderAll(){renderDiceFaces();renderTokens();renderPropertyOwnership();renderPlayers();renderAction();renderFund();renderLog();renderVols();checkPendingCard();checkPendingReflection();checkPendingTrade();processToasts();if(G.endCondition.startsWith("timer")&&G.phase==="playing")renderTimer();}
 
 // ── RENDERIZAR PIPS DE VOLUNTARIOS EN EL TABLERO ─────────────────────────────
 function renderVols(){
@@ -631,6 +726,7 @@ function volNextLabel(spaceId){
 window.showPropPanel=function(pid){
   var p=G.players[pid];if(!p)return;
   var isMe=pid===myId&&G.phase==="playing"&&G.currentPlayer===pid&&G.turnPhase==="continue";
+  var isSelf=pid===myId&&G.phase==="playing";
   var h='<div class="prop-panel" id="prop-panel" onclick="if(event.target===this)closePropPanel()">';
   h+='<div class="prop-panel-inner">';
   h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">';
@@ -683,6 +779,9 @@ window.showPropPanel=function(pid){
           var reason=!ownsAll?"Necesitas todo el grupo":"Sin fondos";
           h+='<button class="pi-buy-vol" disabled>'+reason+'</button>';
         }
+        if(isSelf){
+          h+='<button class="pi-sell" onclick="openSellModal('+sid2+')">Vender</button>';
+        }
         h+='</div>';
         h+='</div>';
       }
@@ -701,6 +800,71 @@ window.buyVolAction=function(spaceId){
   if(!isHost)sendToHost({type:"action",action:"buy_vol",pid:myId,data:{spaceId:spaceId}});
   else processAction("buy_vol",myId,{spaceId:spaceId});
 };
+
+window.openSellModal=function(spaceId){
+  var sp=BOARD[spaceId];if(!sp)return;
+  closePropPanel();
+  var bankPrice=Math.floor(sp.price/2);
+  var others=G.players.filter(function(pl){return pl.id!==myId&&!pl.eliminated;});
+  var mc=document.getElementById("modal-content");
+  var h='<h2><i class="fas fa-hand-holding-usd" style="margin-right:8px;color:#e9c46a"></i>Vender "'+sp.name+'"</h2>';
+  h+='<p style="font-size:13px;color:var(--muted);margin-bottom:12px">Puedes venderla al Fondo Común, u ofrecérsela directamente a otro jugador (debe aceptar).</p>';
+  if(others.length>0){
+    h+='<div style="margin-bottom:10px"><label style="font-size:12px;color:var(--muted)">Precio para ofrecer a otro jugador</label><input type="number" id="sell-price-input" value="'+sp.price+'" min="1" style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);margin-top:4px;font-family:inherit"></div>';
+    h+='<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px">';
+    for(var i=0;i<others.length;i++){
+      h+='<button class="btn btn-secondary" onclick="offerPropToPlayer('+spaceId+','+others[i].id+')" style="width:100%;text-align:left"><i class="fas fa-user" style="margin-right:6px;color:'+others[i].color+'"></i>Ofrecer a '+others[i].name+'</button>';
+    }
+    h+='</div>';
+  }
+  h+='<button class="btn btn-primary" onclick="sellPropAction('+spaceId+',\''+sp.name.replace(/'/g,"\\'")+'\')" style="width:100%;margin-bottom:8px"><i class="fas fa-university"></i> Vender al Fondo Común por $'+bankPrice+'</button>';
+  h+='<button class="btn btn-secondary" onclick="closeModal()" style="width:100%">Cancelar</button>';
+  mc.innerHTML=h;
+  document.getElementById("modal").classList.add("active");
+};
+
+window.offerPropToPlayer=function(spaceId,toPid){
+  var priceInput=document.getElementById("sell-price-input");
+  var price=priceInput?parseInt(priceInput.value,10):0;
+  if(!price||price<=0){alert("Ingresa un precio válido.");return;}
+  closeModal();
+  if(!isHost)sendToHost({type:"action",action:"offer_prop",pid:myId,data:{spaceId:spaceId,toPid:toPid,price:price}});
+  else processAction("offer_prop",myId,{spaceId:spaceId,toPid:toPid,price:price});
+};
+
+window.sellPropAction=function(spaceId,name){
+  if(!confirm('¿Vender "'+name+'" al Fondo Común por la mitad de su precio? Se perderán las mejoras (voluntarios) que tenga.'))return;
+  closeModal();
+  if(!isHost)sendToHost({type:"action",action:"sell_prop",pid:myId,data:{spaceId:spaceId}});
+  else processAction("sell_prop",myId,{spaceId:spaceId});
+};
+
+function showTradeModal(t){
+  var sp=BOARD[t.spaceId],buyer=G.players[t.toPid],seller=G.players[t.fromPid];
+  if(!sp||!buyer||!seller)return;
+  var mc=document.getElementById("modal-content");
+  var h='<h2><i class="fas fa-handshake" style="margin-right:8px;color:#e9c46a"></i>Oferta de Venta</h2>';
+  h+='<p style="font-size:14px;line-height:1.5"><strong>'+seller.name+'</strong> le ofrece <strong>"'+sp.name+'"</strong> a <strong>'+buyer.name+'</strong> por <strong>$'+t.price+'</strong>.</p>';
+  if(myId===t.toPid){
+    h+='<div class="action-btns" style="margin-top:12px"><button class="btn btn-success" onclick="doAction(\'accept_trade\')"><i class="fas fa-check"></i> Aceptar</button><button class="btn btn-secondary" onclick="doAction(\'reject_trade\')"><i class="fas fa-times"></i> Rechazar</button></div>';
+  } else if(myId===t.fromPid){
+    h+='<div class="waiting-msg" style="margin-top:12px">Esperando respuesta de '+buyer.name+"...</div>";
+    h+='<button class="btn btn-secondary" onclick="doAction(\'cancel_trade\')" style="width:100%;margin-top:8px">Cancelar oferta</button>';
+  } else {
+    h+='<div class="waiting-msg" style="margin-top:12px">Esperando respuesta de '+buyer.name+"...</div>";
+  }
+  mc.innerHTML=h;
+  document.getElementById("modal").classList.add("active");
+}
+var shownTradeStr=null;
+function checkPendingTrade(){
+  var cur=G.pendingTrade?JSON.stringify(G.pendingTrade):null;
+  if(cur!==shownTradeStr){
+    shownTradeStr=cur;
+    if(G.pendingTrade)showTradeModal(G.pendingTrade);
+    else{var m=document.getElementById("modal");if(m)m.classList.remove("active");}
+  }
+}
 
 function renderPlayers(){
   var el=document.getElementById("players-list"),h="";
@@ -736,6 +900,7 @@ function renderAction(){
   var h="";
   if(G.turnPhase==="roll"&&!p.inJail)h='<div class="action-btns"><button class="btn btn-primary" onclick="doAction(\'roll\')"><i class="fas fa-dice"></i> Lanzar Dados</button></div>';
   else if(G.turnPhase==="roll"&&p.inJail)h='<div style="font-size:12px;color:var(--muted);margin-bottom:8px">🔒 En la Cárcel ('+p.jailTurns+"/3 turnos)</div><div class=\"action-btns\"><button class=\"btn btn-primary\" onclick=\"doAction('roll_jail')\"><i class=\"fas fa-dice\"></i> Intentar Dobles</button><button class=\"btn btn-danger\" onclick=\"doAction('pay_jail')\"><i class=\"fas fa-coins\"></i> Pagar $150 y salir</button></div>";
+  else if(G.turnPhase==="rolling")h='<div class="waiting-msg"><i class="fas fa-dice"></i> Lanzando los dados...</div>';
   else if(G.turnPhase==="buy"){var sp=BOARD[G.currentSpace];if(!sp){G.turnPhase="continue";syncNow();return;}h='<div style="font-size:13px;margin-bottom:8px"><strong>'+sp.name+"</strong><br>Precio: <strong>$"+sp.price+"</strong> | Aporte: $"+sp.aporte+'</div><div class="action-btns"><button class="btn btn-success" onclick="doAction(\'buy\')"><i class="fas fa-shopping-cart"></i> Comprar $'+sp.price+'</button><button class="btn btn-secondary" onclick="doAction(\'pass_buy\')"><i class="fas fa-gavel"></i> Pasar (Subasta)</button></div>';}
   else if(G.turnPhase==="donate")h='<div style="font-size:13px;margin-bottom:8px"><i class="fas fa-hands-helping" style="color:#9b59b6"></i> <strong>Día de Servicio</strong><br><span style="font-size:12px;color:var(--muted)">¿Deseas donar voluntariamente?</span></div><div class="action-btns"><button class="btn btn-success" onclick="doAction(\'donate\')"><i class="fas fa-hand-holding-heart"></i> Donar $50 al Fondo</button><button class="btn btn-secondary" onclick="doAction(\'skip_donate\')"><i class="fas fa-forward"></i> Continuar sin donar</button></div>';
   else if(G.turnPhase==="continue"){
@@ -751,13 +916,17 @@ function renderAction(){
 
 function renderAucUI(){if(!G.auction)return "";var a=G.auction,sp=BOARD[a.propertyId],myPassed=a.passed.indexOf(myId)!==-1;var h='<div style="font-size:13px;margin-bottom:6px"><i class="fas fa-gavel" style="color:var(--accent)"></i> <strong>Subasta: '+sp.name+"</strong></div><div class=\"auction-bid\">Puja: <span>$"+a.currentBid+"</span></div><div style=\"font-size:12px;color:var(--muted);margin-bottom:8px\">"+(a.currentBidder>=0?"Mayor postor: "+G.players[a.currentBidder].name:"Nadie ha pujado")+"</div>";if(!myPassed)h+='<div class="action-btns"><button class="btn btn-primary" onclick="doAction(\'auction_bid\')"><i class="fas fa-arrow-up"></i> Pujar $'+(a.currentBid+10)+'</button><button class="btn btn-secondary" onclick="doAction(\'auction_pass\')"><i class="fas fa-times"></i> Pasar</button></div>';else h+='<div style="font-size:12px;color:var(--muted)"><i class="fas fa-check"></i> Has pasado. Esperando a los demás...</div>';return h;}
 
-window.doAction=function(a,d){if(processing)return;if(!isHost)sendToHost({type:"action",action:a,pid:myId,data:d});else processAction(a,myId,d);};
+window.doAction=function(a,d){
+  var bypass=(a==="sell_prop"||a==="offer_prop"||a==="accept_trade"||a==="reject_trade"||a==="cancel_trade"||a==="auction_bid"||a==="auction_pass");
+  if(processing&&!bypass)return;
+  if(!isHost)sendToHost({type:"action",action:a,pid:myId,data:d});else processAction(a,myId,d);
+};
 
 function processAction(a,pid,d){
-  if(processing)return;var p=G.players[pid];if(!p||p.eliminated)return;
-  if(pid!==G.currentPlayer&&a!=="auction_bid"&&a!=="auction_pass")return;
-  if(a==="roll"){processing=true;renderAction();animThenProc(pid,false);}
-  else if(a==="roll_jail"){processing=true;renderAction();animThenProc(pid,true);}
+  if(processing&&a!=="sell_prop"&&a!=="offer_prop"&&a!=="accept_trade"&&a!=="reject_trade"&&a!=="cancel_trade")return;var p=G.players[pid];if(!p||p.eliminated)return;
+  if(pid!==G.currentPlayer&&a!=="auction_bid"&&a!=="auction_pass"&&a!=="sell_prop"&&a!=="offer_prop"&&a!=="accept_trade"&&a!=="reject_trade"&&a!=="cancel_trade")return;
+  if(a==="roll"){if(G.turnPhase!=="roll"||p.inJail)return;processing=true;G.turnPhase="rolling";renderAction();animThenProc(pid,false);}
+  else if(a==="roll_jail"){if(G.turnPhase!=="roll"||!p.inJail)return;processing=true;G.turnPhase="rolling";renderAction();animThenProc(pid,true);}
   else if(a==="pay_jail")payJail(pid);
   else if(a==="buy")buyProp(pid);
   else if(a==="pass_buy")startAuc(pid);
@@ -767,14 +936,29 @@ function processAction(a,pid,d){
   else if(a==="auction_bid")aucBid(pid);
   else if(a==="auction_pass")aucPass(pid);
   else if(a==="buy_vol")buyVol(pid,d&&d.spaceId);
+  else if(a==="sell_prop")sellProp(pid,d&&d.spaceId);
+  else if(a==="offer_prop")offerProp(pid,d&&d.spaceId,d&&d.toPid,d&&d.price);
+  else if(a==="accept_trade")resolveTrade(pid,true);
+  else if(a==="reject_trade")resolveTrade(pid,false);
+  else if(a==="cancel_trade"){
+    if(G.pendingTrade&&G.pendingTrade.fromPid===pid){
+      var sp=BOARD[G.pendingTrade.spaceId],buyer=G.players[G.pendingTrade.toPid];
+      G.pendingTrade=null;
+      if(sp)addLog(p.name+' canceló la oferta de "'+sp.name+'".',false,{pid:pid,icon:"fa-ban",you:"Cancelaste tu oferta",other:"{name} canceló su oferta"});
+      syncNow();
+    }
+  }
+  else if(a==="accept_card"){if(!G.pendingCard||G.pendingCard.pid!==pid)return;var pc=G.pendingCard;G.pendingCard=null;processing=true;applyC(pc.card,pc.pid);}
+  else if(a==="close_reflection"){if(!G.pendingReflection||G.pendingReflection.pid!==pid)return;G.pendingReflection=null;syncNow();}
 }
 
 function animThenProc(pid,fj){
   var d1=Math.floor(Math.random()*6)+1,d2=Math.floor(Math.random()*6)+1,db=d1===d2;
   G.dice=[d1,d2];
-  var e1=document.getElementById("die1"),e2=document.getElementById("die2");
-  e1.classList.add("rolling");e2.classList.add("rolling");document.getElementById("dice-result").textContent="";
-  var c=0,iv=setInterval(function(){renderDie(e1,Math.floor(Math.random()*6)+1);renderDie(e2,Math.floor(Math.random()*6)+1);c++;if(c>8){clearInterval(iv);e1.classList.remove("rolling");e2.classList.remove("rolling");renderDie(e1,d1);renderDie(e2,d2);document.getElementById("dice-result").textContent=db?"¡Dobles!":"";afterRoll(pid,d1+d2,db,fj);}},60);
+  G.lastMoveType="forward";
+  syncNow();
+  showDiceModal(G.players[pid].name);
+  runDiceModalAnimation(d1,d2,function(){afterRoll(pid,d1+d2,db,fj);});
 }
 
 function afterRoll(pid,tot,db,fj){
@@ -782,13 +966,12 @@ function afterRoll(pid,tot,db,fj){
   if(fj){
     if(db){
       p.inJail=false;p.jailTurns=0;
-      addLog(p.name+" sale de la Cárcel con dobles!",true);
-      showToast(p.name+" ¡sale de la Cárcel!","fa-unlock");
+      addLog(p.name+" sale de la Cárcel con dobles!",true,{pid:pid,icon:"fa-unlock",you:"¡Sacaste dobles y saliste de la Cárcel!",other:"{name} sacó dobles y salió de la Cárcel"});
       moveP(pid,tot,true);
     }else{
       p.jailTurns++;
       if(p.jailTurns>=3){
-        addLog(p.name+" no logró dobles en 3 turnos. Paga $150.",true);
+        addLog(p.name+" no logró dobles en 3 turnos. Paga $150.",true,{pid:pid,icon:"fa-unlock",you:"No lograste dobles en 3 turnos. Pagaste $150 y saliste.",other:"{name} no logró dobles en 3 turnos y pagó $150 para salir"});
         p.money-=150;
         if(p.money<0)p.money=0;
         p.inJail=false;p.jailTurns=0;
@@ -841,8 +1024,7 @@ function moveP(pid,steps,fj){
     if(prevPos===39&&p.position===0){
       p.laps++;
       p.money+=200;
-      addLog(p.name+" pasa por el Punto de Partida. +$200 🎉",true);
-      showToast("+$200 por pasar el Punto de Partida!","fa-heart");
+      addLog(p.name+" pasa por el Punto de Partida. +$200 🎉",true,{pid:pid,icon:"fa-heart",you:"¡Pasaste por el Punto de Partida! +$200",other:"{name} pasó por el Punto de Partida (+$200)"});
       if(G.targetLaps>0&&p.laps>=G.targetLaps){
         renderTokens();moved++;setTimeout(function(){
           addLog(p.name+" completó "+G.targetLaps+" vueltas!",true);
@@ -871,7 +1053,7 @@ function resolveLand(pid){
   else if(sp.type==="tax"){payTax(pid,sp.amount);}
   else if(sp.type==="reflexion"){payReflex(pid);}
   else if(sp.type==="servicio")G.turnPhase="donate";
-  else if(sp.type==="gotojail"){sendJail(pid);return;}
+  else if(sp.type==="gotojail"){sendJail(pid);processing=false;return;}
   else if(sp.type==="jail")G.turnPhase="continue";
   else G.turnPhase="continue";
   processing=false;syncNow();
@@ -897,8 +1079,7 @@ function resolveProp(pid){
     if(owP)owP.money+=aporteReal;
     var lv=G.volunteers[G.currentSpace]||0;
     var lvLabel=lv===0?"":lv<5?" ("+lv+" vol.)":"(ONG)";
-    addLog(p.name+" aporta $"+aporteReal+lvLabel+" a "+(owP?owP.name:"?")+' por "'+sp.name+'"');
-    showToast("Aporte: -$"+aporteReal+" → "+(owP?owP.name:""),"fa-hand-holding-heart");
+    addLog(p.name+" aporta $"+aporteReal+lvLabel+" a "+(owP?owP.name:"?")+' por "'+sp.name+'"',false,{pid:pid,pid2:ow,icon:"fa-hand-holding-heart",you:"Pagaste $"+aporteReal+" a "+(owP?owP.name:"")+' por "'+sp.name+'"',you2:"¡Recibiste $"+aporteReal+" de "+p.name+' por "'+sp.name+'"!',other:"{name} pagó $"+aporteReal+" a "+(owP?owP.name:"")+' por "'+sp.name+'"'});
     if(p.money<=0){elimP(pid);}
     G.turnPhase="continue";
   }
@@ -915,8 +1096,63 @@ function buyVol(pid,spaceId){
   G.volunteers[spaceId]=(G.volunteers[spaceId]||0)+1;
   var lv=G.volunteers[spaceId];
   var label=lv<=4?lv+" Voluntario"+(lv>1?"s":""):"ONG de Apoyo ⭐";
-  addLog(p.name+' mejora "'+sp.name+'" → '+label+' (costo $'+cost+')',true);
-  showToast("¡"+sp.short+": "+label+"!","fa-user-plus");
+  addLog(p.name+' mejora "'+sp.name+'" → '+label+' (costo $'+cost+')',true,{pid:pid,icon:"fa-user-plus",you:"¡Mejoraste \""+sp.name+"\" → "+label+"!",other:"{name} mejoró \""+sp.name+"\" → "+label});
+  syncNow();
+}
+
+function sellProp(pid,spaceId){
+  if(spaceId===undefined||spaceId===null)return;
+  spaceId=parseInt(spaceId);
+  if(G.pendingTrade)return;
+  if(G.properties[spaceId]!==pid)return;
+  var sp=BOARD[spaceId],p=G.players[pid];if(!sp||!p)return;
+  var refund=Math.floor(sp.price/2);
+  p.money+=refund;
+  delete G.properties[spaceId];
+  delete G.volunteers[spaceId];
+  var idx=p.properties.indexOf(spaceId);
+  if(idx!==-1)p.properties.splice(idx,1);
+  addLog(p.name+' vende "'+sp.name+'" por $'+refund,true,{pid:pid,icon:"fa-hand-holding-usd",you:'Vendiste "'+sp.name+'" por $'+refund,other:"{name} vendió \""+sp.name+"\" por $"+refund});
+  syncNow();
+}
+
+function offerProp(fromPid,spaceId,toPid,price){
+  if(spaceId===undefined||spaceId===null||toPid===undefined||toPid===null)return;
+  spaceId=parseInt(spaceId);toPid=parseInt(toPid);
+  if(G.pendingTrade)return;
+  if(G.properties[spaceId]!==fromPid)return;
+  if(toPid===fromPid)return;
+  var toP=G.players[toPid];if(!toP||toP.eliminated)return;
+  var sp=BOARD[spaceId],fromP=G.players[fromPid];if(!sp||!fromP)return;
+  price=Math.max(1,Math.floor(price)||1);
+  G.pendingTrade={spaceId:spaceId,fromPid:fromPid,toPid:toPid,price:price};
+  addLog(fromP.name+' ofrece "'+sp.name+'" a '+toP.name+' por $'+price,true,{pid:toPid,pid2:fromPid,icon:"fa-handshake",you:fromP.name+' te ofrece "'+sp.name+'" por $'+price,you2:'Le ofreciste "'+sp.name+'" a '+toP.name+" por $"+price,other:fromP.name+" le ofrece \""+sp.name+"\" a "+toP.name});
+  syncNow();
+}
+
+function resolveTrade(pid,accept){
+  if(!G.pendingTrade||G.pendingTrade.toPid!==pid)return;
+  var t=G.pendingTrade;
+  G.pendingTrade=null;
+  var sp=BOARD[t.spaceId],buyer=G.players[t.toPid],seller=G.players[t.fromPid];
+  if(!sp||!buyer||!seller){syncNow();return;}
+  if(!accept){
+    addLog(buyer.name+' rechazó la oferta de "'+sp.name+'" de '+seller.name+".",true,{pid:t.fromPid,pid2:t.toPid,icon:"fa-times-circle",you:buyer.name+' rechazó tu oferta de "'+sp.name+'"',you2:'Rechazaste la oferta de "'+sp.name+'" de '+seller.name,other:buyer.name+" rechazó una oferta de "+seller.name});
+    syncNow();return;
+  }
+  if(G.properties[t.spaceId]!==t.fromPid){
+    addLog("La oferta de \""+sp.name+"\" ya no es válida (cambió de dueño).",true,{pid:t.toPid,icon:"fa-times-circle",you:"Esa oferta ya no es válida (la propiedad cambió de dueño)",other:"Una oferta a {name} ya no era válida"});
+    syncNow();return;
+  }
+  if(buyer.money<t.price){
+    addLog(buyer.name+" no tuvo fondos suficientes para aceptar.",true,{pid:t.toPid,pid2:t.fromPid,icon:"fa-times-circle",you:"No tenías fondos suficientes para aceptar la oferta",you2:buyer.name+" no tuvo fondos suficientes para aceptar tu oferta",other:buyer.name+" no pudo aceptar por falta de fondos"});
+    syncNow();return;
+  }
+  buyer.money-=t.price;seller.money+=t.price;
+  G.properties[t.spaceId]=t.toPid;
+  var idx=seller.properties.indexOf(t.spaceId);if(idx!==-1)seller.properties.splice(idx,1);
+  buyer.properties.push(t.spaceId);
+  addLog(buyer.name+' compra "'+sp.name+'" a '+seller.name+' por $'+t.price,true,{pid:t.toPid,pid2:t.fromPid,icon:"fa-handshake",you:'¡Aceptaste! Compraste "'+sp.name+'" a '+seller.name+' por $'+t.price,you2:'¡'+buyer.name+' aceptó! Vendiste "'+sp.name+'" por $'+t.price,other:buyer.name+" le compró \""+sp.name+"\" a "+seller.name});
   syncNow();
 }
 
@@ -927,8 +1163,7 @@ function buyProp(pid){
   G.properties[G.currentSpace]=pid;
   p.properties.push(G.currentSpace);
   if(G.volunteers[G.currentSpace]===undefined)G.volunteers[G.currentSpace]=0;
-  addLog(p.name+' compra "'+sp.name+'" por $'+sp.price,true);
-  showToast("¡Compraste: "+sp.name+"!","fa-shopping-cart");
+  addLog(p.name+' compra "'+sp.name+'" por $'+sp.price,true,{pid:pid,icon:"fa-shopping-cart",you:'¡Compraste: '+sp.name+"!",other:"{name} compró: "+sp.name});
   if(p.money<0)p.money=0;
   G.turnPhase="continue";
   syncNow();
@@ -938,8 +1173,7 @@ function payTax(pid,amt){
   var p=G.players[pid];
   var real=Math.min(amt,p.money);
   p.money-=real;G.communityFund+=real;
-  addLog(p.name+" paga Impuesto $"+real+" al Fondo Comunitario.");
-  showToast("Impuesto: -$"+real,"fa-file-invoice-dollar");
+  addLog(p.name+" paga Impuesto $"+real+" al Fondo Comunitario.",false,{pid:pid,icon:"fa-file-invoice-dollar",you:"Pagaste $"+real+" de Impuesto al Fondo Comunitario",other:"{name} pagó $"+real+" de Impuesto"});
   if(p.money<=0)elimP(pid);
   G.turnPhase="continue";syncNow();
 }
@@ -949,36 +1183,45 @@ function payReflex(pid){
   var real=Math.min(50,p.money);
   p.money-=real;G.communityFund+=real;
   var q=REFLEXION_Q[Math.floor(Math.random()*REFLEXION_Q.length)];
-  addLog(p.name+" reflexiona y dona $"+real+" al Fondo.");
-  showToast("Reflexión: -$"+real+" al Fondo","fa-brain");
-  // Mostrar pregunta de reflexión en modal
-  var mc=document.getElementById("modal-content");
-  mc.innerHTML='<h2><i class="fas fa-brain" style="margin-right:8px;color:#e76f51"></i>Área de Reflexión</h2>'+
-    '<p style="color:var(--accent);font-weight:700">'+p.name+' dona $'+real+' al Fondo Comunitario.</p>'+
-    '<div class="reflection-question">'+q+'</div>'+
-    '<p style="font-size:13px;color:var(--muted)">Comparte tu respuesta en voz alta con el grupo antes de continuar.</p>'+
-    '<button class="btn btn-primary" onclick="closeModalNoCard()" style="margin-top:12px;width:100%"><i class="fas fa-check"></i> Continuar</button>';
-  document.getElementById("modal").classList.add("active");
+  addLog(p.name+" reflexiona y dona $"+real+" al Fondo.",false,{pid:pid,icon:"fa-brain",you:"Donaste $"+real+" al Fondo (Reflexión)",other:"{name} donó $"+real+" al Fondo (Reflexión)"});
+  G.pendingReflection={pid:pid,amount:real,question:q};
   if(p.money<=0)elimP(pid);
   G.turnPhase="continue";
   processing=false;syncNow();
 }
+function showReflectionModal(pr){
+  var p=G.players[pr.pid];
+  var mc=document.getElementById("modal-content");
+  mc.innerHTML='<h2><i class="fas fa-brain" style="margin-right:8px;color:#e76f51"></i>Área de Reflexión</h2>'+
+    '<p style="color:var(--accent);font-weight:700">'+(p?p.name:"")+' dona $'+pr.amount+' al Fondo Comunitario.</p>'+
+    '<div class="reflection-question">'+pr.question+'</div>'+
+    '<p style="font-size:13px;color:var(--muted)">Comparte tu respuesta en voz alta con el grupo antes de continuar.</p>'+
+    (myId===pr.pid?'<button class="btn btn-primary" onclick="closeReflection()" style="margin-top:12px;width:100%"><i class="fas fa-check"></i> Continuar</button>':'<div class="waiting-msg" style="margin-top:12px">Esperando que '+(p?p.name:"")+" continúe...</div>");
+  document.getElementById("modal").classList.add("active");
+}
+window.closeReflection=function(){document.getElementById("modal").classList.remove("active");doAction('close_reflection');};
+var shownReflectionStr=null;
+function checkPendingReflection(){
+  var cur=G.pendingReflection?JSON.stringify(G.pendingReflection):null;
+  if(cur!==shownReflectionStr){
+    shownReflectionStr=cur;
+    if(G.pendingReflection)showReflectionModal(G.pendingReflection);
+    else{var m=document.getElementById("modal");if(m)m.classList.remove("active");}
+  }
+}
 
-window.closeModalNoCard=function(){document.getElementById("modal").classList.remove("active");};
+function donateServ(pid){var p=G.players[pid];var real=Math.min(50,p.money);p.money-=real;G.communityFund+=real;addLog(p.name+" dona $"+real+" al Fondo (Día de Servicio).",true,{pid:pid,icon:"fa-hand-holding-heart",you:"¡Donaste $"+real+" al Fondo (Día de Servicio)!",other:"{name} donó $"+real+" al Fondo (Día de Servicio)"});if(p.money<=0)elimP(pid);endTurn();}
 
-function donateServ(pid){var p=G.players[pid];var real=Math.min(50,p.money);p.money-=real;G.communityFund+=real;addLog(p.name+" dona $"+real+" al Fondo (Día de Servicio).",true);showToast("¡Donación voluntaria: -$"+real+"!","fa-hand-holding-heart");if(p.money<=0)elimP(pid);endTurn();}
+function sendJail(pid){var p=G.players[pid];p.inJail=true;p.jailTurns=0;p.position=10;G.doublesCount=0;G.lastMoveType="instant";addLog(p.name+" va a la Cárcel del Individualismo!",true,{pid:pid,icon:"fa-lock",you:"¡Fuiste a la Cárcel del Individualismo!",other:"{name} fue a la Cárcel del Individualismo"});G.turnPhase="continue";syncNow();}
 
-function sendJail(pid){var p=G.players[pid];p.inJail=true;p.jailTurns=0;p.position=10;G.doublesCount=0;addLog(p.name+" va a la Cárcel del Individualismo!",true);showToast("¡Cárcel del Individualismo!","fa-lock");G.turnPhase="continue";syncNow();}
-
-function payJail(pid){var p=G.players[pid];if(p.money<150){addLog(p.name+" no tiene fondos para pagar. Sale igual.");} else{p.money-=150;}p.inJail=false;p.jailTurns=0;addLog(p.name+" paga $150 y sale de la Cárcel.");showToast("Saliste de la Cárcel -$150","fa-unlock");G.turnPhase="roll";syncNow();}
+function payJail(pid){var p=G.players[pid];if(p.money<150){addLog(p.name+" no tiene fondos para pagar. Sale igual.");} else{p.money-=150;}p.inJail=false;p.jailTurns=0;addLog(p.name+" paga $150 y sale de la Cárcel.",false,{pid:pid,icon:"fa-unlock",you:"Pagaste $150 y saliste de la Cárcel",other:"{name} pagó $150 y salió de la Cárcel"});G.turnPhase="roll";syncNow();}
 
 // ── TARJETAS ─────────────────────────────────────────────────────────────────
 function drawC(pid,deck){
   var card;
   if(deck==="cofre"){card=CC[G.cofreIndex];G.cofreIndex=(G.cofreIndex+1)%CC.length;}
   else{card=CF[G.faltaIndex];G.faltaIndex=(G.faltaIndex+1)%CF.length;}
-  showCardM(card,deck,pid);
-  pendingCard={card:card,pid:pid};
+  G.pendingCard={card:card,deck:deck,pid:pid};
   processing=false;syncNow();
 }
 
@@ -1005,15 +1248,25 @@ function showCardM(card,deck,pid){
     '<div class="card-text">'+card.text+'</div>'+
     (efectoTexto?'<div class="card-effect">'+efectoTexto+'</div>':'')+
     '</div>'+
-    (myId===pid?'<button class="btn btn-primary" onclick="closeModal()" style="margin-top:8px;width:100%"><i class="fas fa-check"></i> Aceptar y aplicar</button>':
+    (myId===pid?'<button class="btn btn-primary" onclick="acceptCard()" style="margin-top:8px;width:100%"><i class="fas fa-check"></i> Aceptar y aplicar</button>':
     '<p style="font-size:13px;color:var(--muted)">Esperando que '+p.name+' acepte la tarjeta...</p>');
   document.getElementById("modal").classList.add("active");
 }
 
 window.closeModal=function(){
   document.getElementById("modal").classList.remove("active");
-  if(pendingCard){var pc=pendingCard;pendingCard=null;processing=true;applyC(pc.card,pc.pid);}
 };
+window.acceptCard=function(){document.getElementById("modal").classList.remove("active");doAction('accept_card');};
+
+var shownPendingCardStr=null;
+function checkPendingCard(){
+  var cur=G.pendingCard?JSON.stringify(G.pendingCard):null;
+  if(cur!==shownPendingCardStr){
+    shownPendingCardStr=cur;
+    if(G.pendingCard)showCardM(G.pendingCard.card,G.pendingCard.deck,G.pendingCard.pid);
+    else{var m=document.getElementById("modal");if(m)m.classList.remove("active");}
+  }
+}
 
 function applyC(card,pid){
   var p=G.players[pid],et="";
@@ -1028,20 +1281,23 @@ function applyC(card,pid){
       var cur=p.position;
       while(cur!==card.position){
         cur=(cur+1)%40;
-        if(cur===0){p.money+=200;addLog(p.name+" pasa por GO: +$200",true);showToast("+$200 por pasar el Punto de Partida!","fa-heart");}
+        if(cur===0){p.money+=200;addLog(p.name+" pasa por GO: +$200",true,{pid:pid,icon:"fa-heart",you:"¡Pasaste por el Punto de Partida! +$200",other:"{name} pasó por el Punto de Partida (+$200)"});}
       }
+      G.lastMoveType="forward";
+    }else{
+      G.lastMoveType="instant";
     }
     p.position=card.position;
     et="→ "+BOARD[card.position].name;
   }
   else if(card.action==="jail"){sendJail(pid);et="Ir a la Cárcel";processing=false;syncNow();return;}
-  else if(card.action==="move_back"){p.position=(p.position-card.amount+40)%40;et="Retrocede "+card.amount;}
+  else if(card.action==="move_back"){p.position=(p.position-card.amount+40)%40;et="Retrocede "+card.amount;G.lastMoveType="backward";}
   else if(card.action==="move_fwd"){
-    for(var k=0;k<card.amount;k++){p.position=(p.position+1)%40;if(p.position===0){p.money+=200;addLog(p.name+" pasa por GO: +$200",true);}}
-    et="Avanza "+card.amount;
+    for(var k=0;k<card.amount;k++){p.position=(p.position+1)%40;if(p.position===0){p.money+=200;addLog(p.name+" pasa por GO: +$200",true,{pid:pid,icon:"fa-heart",you:"¡Pasaste por el Punto de Partida! +$200",other:"{name} pasó por el Punto de Partida (+$200)"});}}
+    et="Avanza "+card.amount;G.lastMoveType="forward";
   }
   else if(card.action==="lose_turn"){G.skipNextTurn[pid]=true;et="Pierde próximo turno";}
-  addLog(p.name+": "+card.title+" ("+et+")",true);
+  addLog(p.name+": "+card.title+" ("+et+")",true,{pid:pid,icon:"fa-clone",you:card.title+": "+et,other:"{name}: "+card.title+" ("+et+")"});
   G.turnPhase="continue";processing=false;syncNow();
 }
 
@@ -1051,8 +1307,7 @@ function startAuc(ppid){
   if(!sp){G.turnPhase="continue";syncNow();return;}
   G.auction={propertyId:G.currentSpace,currentBid:Math.floor(sp.price/2),currentBidder:-1,passed:[],timer:null};
   G.turnPhase="auction";
-  addLog("Subasta: "+sp.name+" (mínimo: $"+G.auction.currentBid+")",true);
-  showToast("¡Subasta: "+sp.name+"!","fa-gavel");
+  addLog("Subasta: "+sp.name+" (mínimo: $"+G.auction.currentBid+")",true,{pid:-1,icon:"fa-gavel",other:"¡Subasta iniciada por \""+sp.name+"\"! Mínimo: $"+G.auction.currentBid});
   G.auction.timer=setTimeout(function(){finAuc();},25000);
   syncNow();
 }
@@ -1081,8 +1336,7 @@ function finAuc(){
   if(a.currentBidder>=0){
     var p=G.players[a.currentBidder];
     p.money-=a.currentBid;G.properties[a.propertyId]=a.currentBidder;p.properties.push(a.propertyId);
-    addLog(p.name+' gana subasta de "'+sp.name+'" por $'+a.currentBid,true);
-    showToast(p.name+" gana: "+sp.name+" ($"+a.currentBid+")","fa-gavel");
+    addLog(p.name+' gana subasta de "'+sp.name+'" por $'+a.currentBid,true,{pid:a.currentBidder,icon:"fa-gavel",you:"¡Ganaste la subasta de \""+sp.name+"\" por $"+a.currentBid+"!",other:"{name} ganó la subasta de \""+sp.name+"\" por $"+a.currentBid});
     if(p.money<0)p.money=0;
   }else{addLog("Nadie pujó. "+sp.name+" queda sin dueño.");}
   G.auction=null;endTurn();
@@ -1093,8 +1347,7 @@ function endTurn(){
   var p=G.players[G.currentPlayer];
   // Si sacó dobles y no está en cárcel, turno extra
   if(G.doublesCount>0&&G.doublesCount<3&&!p.eliminated&&!p.inJail){
-    addLog(p.name+" ¡Dobles! Turno extra.",true);
-    showToast("¡Turno extra por dobles!","fa-dice");
+    addLog(p.name+" ¡Dobles! Turno extra.",true,{pid:G.currentPlayer,icon:"fa-dice",you:"¡Sacaste dobles! Tienes un turno extra",other:"{name} sacó dobles. Turno extra"});
     G.turnPhase="roll";G.doublesCount=0;processing=false;syncNow();return;
   }
   G.doublesCount=0;
@@ -1104,20 +1357,19 @@ function endTurn(){
   // Verificar si el siguiente jugador pierde turno
   if(G.skipNextTurn[next]){
     delete G.skipNextTurn[next];
-    addLog(G.players[next].name+" pierde su turno (Reto de Empatía).");
+    addLog(G.players[next].name+" pierde su turno (Reto de Empatía).",true,{pid:next,icon:"fa-user-clock",you:"Pierdes tu turno (Reto de Empatía)",other:"{name} pierde su turno (Reto de Empatía)"});
     var again=nextActive(next);
     if(again===next){G.currentPlayer=next;}// Todos pierde turno: no puede pasar
     else{G.currentPlayer=again;}
   }
-  addLog("Turno de: "+G.players[G.currentPlayer].name,true);
+  addLog("Turno de: "+G.players[G.currentPlayer].name,true,{pid:G.currentPlayer,icon:"fa-flag-checkered",you:"¡Es tu turno!",other:"Turno de {name}"});
   G.turnPhase="roll";processing=false;syncNow();
 }
 
 function elimP(pid){
   var p=G.players[pid];if(p.eliminated)return;
   p.eliminated=true;p.money=0;
-  addLog(p.name+" eliminado (sin Generosipoints).",true);
-  showToast(p.name+" ha sido eliminado.","fa-user-slash");
+  addLog(p.name+" eliminado (sin Generosipoints).",true,{pid:pid,icon:"fa-user-slash",you:"Has sido eliminado del juego (sin fondos)",other:"{name} ha sido eliminado del juego"});
   for(var i=0;i<p.properties.length;i++){delete G.properties[p.properties[i]];delete G.volunteers[p.properties[i]];}
   p.properties=[];
   var act=[];for(var j=0;j<G.players.length;j++){if(!G.players[j].eliminated)act.push(G.players[j]);}
@@ -1173,7 +1425,6 @@ function showEndGame(){
 
 window.switchTab=function(t,el){var bs=document.querySelectorAll(".tab-btn");for(var i=0;i<bs.length;i++)bs[i].classList.remove("active");el.classList.add("active");document.getElementById("tab-create").style.display=t==="create"?"block":"none";document.getElementById("tab-join").style.display=t==="join"?"block":"none";};
 
-renderDie(document.getElementById("die1"),1);renderDie(document.getElementById("die2"),1);
 window.addEventListener("beforeunload",function(){if(peer)peer.destroy();});
 
 })();
