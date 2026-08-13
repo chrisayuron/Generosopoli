@@ -209,7 +209,16 @@ function registerHostInbound() {
 
 function hostLocalInbound(data) {
   if (!data) return;
-  if (data.kind === "hello" || data.kind === "action" || data.kind === "unicast") return;
+  if (data.kind === "hello" || data.kind === "unicast") return;
+
+  if (data.kind === "action") {
+    var m = data.msg;
+    if (!m || m.type !== "action") return;
+    if (typeof data.pid !== "number" || typeof m.pid !== "number") return;
+    if (m.pid !== data.pid) return;
+    processAction(m.action, m.pid, m.data);
+    return;
+  }
 
   if (data.kind === "join") {
     var pid = G.players.length;
@@ -429,7 +438,7 @@ function applyState(d) {
   var wasL = G.phase === "lobby";
   var prevSnap = localSnap;
   var prevSnapStr = JSON.stringify(prevSnap);
-
+  markRender({ tokens: true, ownership: true, players: true, action: true, fund: true, log: true, vols: true });
   G.phase = d.phase;
   G.players = d.players;
   G.properties = d.properties;

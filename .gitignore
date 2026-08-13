@@ -21,3 +21,5 @@ test.html
 *.log
 *.tmp
 *.bak
+__pycache__/
+*.pyc

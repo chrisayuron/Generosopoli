@@ -204,11 +204,12 @@ function animThenProc(pid, fj) {
   G.dice = [d1, d2];
   G.lastMoveType = "forward";
   syncNow();
-  // El host NO ejecuta animación de dados; el cliente la maneja con clientAnimateDice.
-  // Delay para dar tiempo al cliente a mostrar la animación de dados (~1.34s)
-  // antes de resolver la casilla y mostrar opciones de compra.
-  // Se usa 1600ms para cubrir latencia de red.
-  var delay = fj ? 600 : 1600;
+  // El host también muestra la animación de dados (el cliente la maneja vía
+  // clientDetectChanges). Todos los jugadores ven el lanzamiento del turno actual.
+  var ap = G.players[pid];
+  if (ap) clientAnimateDice(d1, d2, ap.name);
+  // Delay para que todos vean la animación (~1.34s) antes de resolver la casilla.
+  var delay = fj ? 1400 : 1600;
   setTimeout(function () { afterRoll(pid, d1 + d2, db, fj); }, delay);
 }
 

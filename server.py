@@ -23,18 +23,19 @@ PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8080
 GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 ROOMS = {}
+SOCK_ROOM = {}
 LOCK = threading.Lock()
 
 
 def register(sock, room):
     with LOCK:
-        sock.room = room
+        SOCK_ROOM[sock] = room
         ROOMS.setdefault(room, set()).add(sock)
 
 
 def unregister(sock):
     with LOCK:
-        room = getattr(sock, "room", None)
+        room = SOCK_ROOM.pop(sock, None)
         if room:
             s = ROOMS.get(room)
             if s:
@@ -98,7 +99,7 @@ class WSRelayHandler(http.server.SimpleHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
     def log_message(self, fmt, *args):
-        sys.stdout.write("[server] " + fmt % args + "\n")
+        sys.stdout.write("[server] " + (fmt % args) + "\n")
 
     def do_GET(self):
         if self.path.rstrip("/") == "/ws" or self.path.startswith("/ws?"):
@@ -146,13 +147,14 @@ class WSRelayHandler(http.server.SimpleHTTPRequestHandler):
                         continue
                     room = data.get("room")
                     if room:
-                        if not getattr(sock, "room", None):
+                        if sock not in SOCK_ROOM:
                             register(sock, room)
                         relay(room, data.get("data"))
         except Exception:
             pass
         finally:
             unregister(sock)
+            self.close_connection = True
 
 
 class ThreadingServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
