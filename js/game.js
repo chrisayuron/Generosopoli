@@ -38,7 +38,7 @@ var localSnap = {
 };
 
 var myId = -1, isHost = false, peer = null, hostConn = null;
-var roomCode = "", connMap = {}, connReverseMap = {};
+var roomCode = "", connMap = {};
 var processing = false;
 
 // ── UTILIDADES ────────────────────────────────────────────────────────────

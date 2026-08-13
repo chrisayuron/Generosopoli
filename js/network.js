@@ -16,7 +16,7 @@ function sanitizeName(name) {
 function setupPeer(id) {
   return new Promise(function (res, rej) {
     var cfg = {
-      debug: 0,
+      debug: 1,
       config: {
         iceServers: [
           { urls: "stun:stun.l.google.com:19302" },
@@ -24,9 +24,19 @@ function setupPeer(id) {
         ]
       }
     };
+    console.log("[Peer] Creando peer" + (id ? " con ID: geno-" + id : " (auto-ID)"));
     var p = id ? new Peer("geno-" + id, cfg) : new Peer(undefined, cfg);
-    p.on("open", function () { res(p); });
-    p.on("error", function (e) { rej(e); });
+    p.on("open", function (id) {
+      console.log("[Peer] Peer abierto, ID:", id);
+      res(p);
+    });
+    p.on("error", function (e) {
+      console.error("[Peer] Error:", e.type, e.message);
+      rej(e);
+    });
+    p.on("disconnected", function () {
+      console.log("[Peer] Desconectado del servidor signaling");
+    });
     peer = p;
   });
 }
@@ -52,9 +62,14 @@ window.createRoom = async function () {
     });
     myId = 0;
     peer.on("connection", function (cn) {
+      console.log("[Host] Nueva conexión recibida");
       cn.on("open", function () {
+        console.log("[Host] Conexión abierta con:", cn.peer);
         cn.on("data", function (d) { handleCM(d, cn); });
         cn.on("close", function () { handleDC(cn); });
+      });
+      cn.on("error", function (e) {
+        console.error("[Host] Error en conexión:", e);
       });
     });
     document.getElementById("room-code-display").textContent = roomCode;
@@ -84,8 +99,10 @@ window.joinRoom = async function () {
 
   try {
     await setupPeer();
+    console.log("[Client] Peer listo, conectando a geno-" + code);
     hostConn = peer.connect("geno-" + code, { reliable: true });
     hostConn.on("open", function () {
+      console.log("[Client] Conexión abierta con host");
       hostConn.send({ type: "join", name: name });
       st.textContent = "Esperando al host...";
     });
@@ -129,10 +146,9 @@ function updateConnectionStatus(status, text) {
 }
 
 function handleDC(cn) {
-  var pid = connReverseMap[cn.__peerId];
+  var pid = cn._pid;
   if (pid !== undefined) {
     delete connMap[pid];
-    delete connReverseMap[cn.__peerId];
     if (G.players[pid]) {
       G.players[pid].eliminated = true;
       addLog(G.players[pid].name + " desconectado.", true);
@@ -157,14 +173,14 @@ function handleCM(msg, cn) {
       properties: [], eliminated: false, laps: 0
     });
     connMap[pid] = cn;
-    connReverseMap[cn.__peerId] = pid;
+    cn._pid = pid;
     cn.send({ type: "assigned", pid: pid, color: PC[pid] });
     addLog(safeName + " se unió.", true);
     renderHPL();
     syncNow();
   }
   if (msg.type === "action") {
-    var senderPid = connReverseMap[cn.__peerId];
+    var senderPid = cn._pid;
     if (senderPid === undefined) return;
     if (typeof msg.pid !== "number" || msg.pid !== senderPid) return;
     processAction(msg.action, msg.pid, msg.data);
