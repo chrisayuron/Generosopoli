@@ -11,12 +11,69 @@ function sanitizeName(name) {
   return sanitize(name.trim().substring(0, 12)) || "Jugador";
 }
 
-// ── PEER.JS - CONFIGURACIÓN ──────────────────────────────────────────────
+// ── TRANSPORTE ───────────────────────────────────────────────────────────
+// local : WebSocket relay (server.py) o BroadcastChannel - para pruebas en localhost
+// peer  : PeerJS (WebRTC) - para jugar entre dispositivos distintos (producción)
+
+var netTransport = "none";
+var wsSocket = null;
+var bcChannel = null;
+var localName = "";
+
+function isLocalHost() {
+  var h = location.hostname;
+  return h === "localhost" || h === "127.0.0.1" || h === "::1";
+}
+
+function wsURL() {
+  var proto = location.protocol === "https:" ? "wss:" : "ws:";
+  return proto + "//" + location.host + "/ws";
+}
+
+function localSend(data) {
+  if (netTransport === "ws" && wsSocket && wsSocket.readyState === 1) {
+    try { wsSocket.send(JSON.stringify({ room: roomCode, data: data })); } catch (e) {}
+  } else if (netTransport === "bc" && bcChannel) {
+    try { bcChannel.postMessage(data); } catch (e) {}
+  }
+}
+
+function initLocalTransport() {
+  return new Promise(function (res, rej) {
+    var settled = false;
+    var ws = null;
+    try { ws = new WebSocket(wsURL()); } catch (e) { ws = null; }
+
+    function fallbackBC() {
+      if (settled) return;
+      try {
+        bcChannel = new BroadcastChannel("genoro-" + roomCode);
+        netTransport = "bc";
+        settled = true;
+        res();
+      } catch (e) { rej(e); }
+    }
+
+    if (!ws) { fallbackBC(); return; }
+
+    ws.onopen = function () {
+      settled = true;
+      netTransport = "ws";
+      wsSocket = ws;
+      res();
+    };
+    ws.onerror = function () { fallbackBC(); };
+    ws.onclose = function () { fallbackBC(); };
+    setTimeout(function () { if (!settled) { try { ws.close(); } catch (e) {} fallbackBC(); } }, 5000);
+  });
+}
+
+// ── PEER.JS (producción / dispositivos distintos) ────────────────────────
 
 function setupPeer(id) {
   return new Promise(function (res, rej) {
     var cfg = {
-      debug: 1,
+      debug: 0,
       config: {
         iceServers: [
           { urls: "stun:stun.l.google.com:19302" },
@@ -24,19 +81,9 @@ function setupPeer(id) {
         ]
       }
     };
-    console.log("[Peer] Creando peer" + (id ? " con ID: geno-" + id : " (auto-ID)"));
     var p = id ? new Peer("geno-" + id, cfg) : new Peer(undefined, cfg);
-    p.on("open", function (id) {
-      console.log("[Peer] Peer abierto, ID:", id);
-      res(p);
-    });
-    p.on("error", function (e) {
-      console.error("[Peer] Error:", e.type, e.message);
-      rej(e);
-    });
-    p.on("disconnected", function () {
-      console.log("[Peer] Desconectado del servidor signaling");
-    });
+    p.on("open", function (pid) { res(p); });
+    p.on("error", function (e) { rej(e); });
     peer = p;
   });
 }
@@ -53,31 +100,27 @@ window.createRoom = async function () {
 
   try {
     roomCode = genCode();
-    await setupPeer(roomCode);
+    if (isLocalHost()) {
+      await initLocalTransport();
+    } else {
+      await setupPeer(roomCode);
+      netTransport = "peer";
+    }
     isHost = true;
+    myId = 0;
     G.players.push({
       id: 0, name: name, color: PC[0], money: INIT_MONEY,
       position: 0, inJail: false, jailTurns: 0,
       properties: [], eliminated: false, laps: 0
     });
-    myId = 0;
-    peer.on("connection", function (cn) {
-      console.log("[Host] Nueva conexión recibida");
-      cn.on("open", function () {
-        console.log("[Host] Conexión abierta con:", cn.peer);
-        cn.on("data", function (d) { handleCM(d, cn); });
-        cn.on("close", function () { handleDC(cn); });
-      });
-      cn.on("error", function (e) {
-        console.error("[Host] Error en conexión:", e);
-      });
-    });
+    registerHostInbound();
+    if (wsSocket && wsSocket.readyState === 1) localSend({ kind: "hello" });
     document.getElementById("room-code-display").textContent = roomCode;
     document.getElementById("room-info").style.display = "block";
     btn.style.display = "none";
     renderHPL();
   } catch (e) {
-    showToast("Error: " + (e.type || e.message));
+    showToast("Error: no se pudo crear la sala");
     btn.disabled = false;
     btn.innerHTML = '<i class="fas fa-plus"></i> Crear Sala';
   }
@@ -91,59 +134,150 @@ window.joinRoom = async function () {
   if (!rawName) return showToast("Ingresa tu nombre");
   if (!code) return showToast("Ingresa el código");
   var name = sanitizeName(rawName);
+  localName = name;
   var btn = document.getElementById("btn-join");
   btn.disabled = true;
   btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Conectando...';
   var st = document.getElementById("join-status");
   st.textContent = "Conectando...";
+  roomCode = code;
 
   try {
-    await setupPeer();
-    console.log("[Client] Peer listo, conectando a geno-" + code);
-    hostConn = peer.connect("geno-" + code, { reliable: true });
-    hostConn.on("open", function () {
-      console.log("[Client] Conexión abierta con host");
-      hostConn.send({ type: "join", name: name });
+    if (isLocalHost()) {
+      myId = -1;
+      await initLocalTransport();
+      registerClientInbound();
+      localSend({ kind: "join", name: name });
       st.textContent = "Esperando al host...";
-    });
-    hostConn.on("data", function (d) {
-      if (d.type === "assigned") {
-        myId = d.pid;
-        st.innerHTML = '<span style="color:#2a9d8f"><i class="fas fa-check-circle"></i> Conectado como ' + name + '</span><br><span style="font-size:11px;color:var(--muted)">Esperando inicio...</span>';
-      }
-      if (d.type === "state") applyState(d.data);
-      if (d.type === "error") {
-        st.innerHTML = '<span style="color:#e63946">' + d.msg + "</span>";
+    } else {
+      await setupPeer();
+      netTransport = "peer";
+      hostConn = peer.connect("geno-" + code, { reliable: true });
+      hostConn.on("open", function () {
+        hostConn.send({ type: "join", name: name });
+        st.textContent = "Esperando al host...";
+      });
+      hostConn.on("data", function (d) {
+        if (d.type === "assigned") {
+          myId = d.pid;
+          st.innerHTML = '<span style="color:#2a9d8f"><i class="fas fa-check-circle"></i> Conectado como ' + name + '</span><br><span style="font-size:11px;color:var(--muted)">Esperando inicio...</span>';
+        }
+        if (d.type === "state") applyState(d.data);
+        if (d.type === "error") {
+          st.innerHTML = '<span style="color:#e63946">' + d.msg + "</span>";
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Unirse';
+        }
+      });
+      hostConn.on("close", function () {
+        st.innerHTML = '<span style="color:#e63946">Conexión perdida.</span>';
+      });
+      hostConn.on("error", function (e) {
+        var err = "Error: " + (e.type || "Desconocido");
+        if (e.type === "peer-unavailable") err = "Sala no encontrada.";
+        st.innerHTML = '<span style="color:#e63946">' + err + "</span>";
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Unirse';
-      }
-    });
-    hostConn.on("close", function () {
-      st.innerHTML = '<span style="color:#e63946">Conexión perdida.</span>';
-    });
-    hostConn.on("error", function (e) {
-      var err = "Error: " + (e.type || "Desconocido");
-      if (e.type === "peer-unavailable") err = "Sala no encontrada.";
-      st.innerHTML = '<span style="color:#e63946">' + err + "</span>";
-      btn.disabled = false;
-      btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Unirse';
-    });
+      });
+    }
   } catch (e) {
-    st.innerHTML = '<span style="color:#e63946">Error: ' + (e.type || e.message) + "</span>";
+    st.innerHTML = '<span style="color:#e63946">Error: ' + (e.message || "No se pudo conectar") + "</span>";
     btn.disabled = false;
     btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Unirse';
   }
 };
 
-// ── MANEJO DE CONEXIONES ─────────────────────────────────────────────────
+// ── ENTRADA DE MENSAJES (host) ───────────────────────────────────────────
 
-function updateConnectionStatus(status, text) {
-  var el = document.getElementById("connection-status");
-  var txt = document.getElementById("conn-text");
-  if (!el || !txt) return;
-  el.className = "connection-status" + (status !== "connected" ? " " + status : "");
-  txt.textContent = text;
+function registerHostInbound() {
+  if (wsSocket) {
+    wsSocket.onmessage = function (e) {
+      try { hostLocalInbound(JSON.parse(e.data).data); } catch (err) {}
+    };
+  } else if (bcChannel) {
+    bcChannel.onmessage = function (e) { hostLocalInbound(e.data); };
+  } else if (peer) {
+    peer.on("connection", function (cn) {
+      cn.on("open", function () {
+        cn.on("data", function (d) { handleCM(d, cn); });
+        cn.on("close", function () { handleDC(cn); });
+      });
+      cn.on("error", function () {});
+    });
+  }
 }
+
+function hostLocalInbound(data) {
+  if (!data) return;
+  if (data.kind === "hello" || data.kind === "action" || data.kind === "unicast") return;
+
+  if (data.kind === "join") {
+    var pid = G.players.length;
+    if (pid >= 4) return;
+    var safeName = sanitizeName(data.name);
+    G.players.push({
+      id: pid, name: safeName, color: PC[pid], money: INIT_MONEY,
+      position: 0, inJail: false, jailTurns: 0,
+      properties: [], eliminated: false, laps: 0
+    });
+    var proxy = {
+      _pid: pid,
+      open: true,
+      send: function (m) { localSend({ kind: "unicast", to: pid, msg: m }); }
+    };
+    connMap[pid] = proxy;
+    localSend({ kind: "unicast", to: pid, msg: { type: "assigned", pid: pid, color: PC[pid] } });
+    addLog(safeName + " se unió.", true);
+    renderHPL();
+    syncNow();
+  } else if (data.kind === "leave") {
+    var lp = data.pid;
+    if (lp === undefined || lp === 0 || !connMap[lp]) return;
+    delete connMap[lp];
+    if (G.players[lp]) {
+      G.players[lp].eliminated = true;
+      addLog(G.players[lp].name + " desconectado.", true);
+      updateConnectionStatus("disconnected", "Jugador desconectado");
+      if (G.phase === "playing" && G.currentPlayer === lp) endTurn();
+      syncNow();
+    }
+  }
+}
+
+// ── ENTRADA DE MENSAJES (cliente) ────────────────────────────────────────
+
+function registerClientInbound() {
+  if (wsSocket) {
+    wsSocket.onmessage = function (e) {
+      try { clientLocalInbound(JSON.parse(e.data).data); } catch (err) {}
+    };
+  } else if (bcChannel) {
+    bcChannel.onmessage = function (e) { clientLocalInbound(e.data); };
+  }
+}
+
+function clientLocalInbound(data) {
+  if (!data || data.kind !== "unicast") return;
+  var m = data.msg;
+  if (!m) return;
+  if (m.type === "assigned" && myId === -1) {
+    myId = m.pid;
+    var st = document.getElementById("join-status");
+    if (st) st.innerHTML = '<span style="color:#2a9d8f"><i class="fas fa-check-circle"></i> Conectado como ' + localName + '</span><br><span style="font-size:11px;color:var(--muted)">Esperando inicio...</span>';
+    return;
+  }
+  if (data.to !== undefined && data.to !== myId) return;
+  if (m.type === "state") {
+    applyState(m.data);
+  } else if (m.type === "error") {
+    var st2 = document.getElementById("join-status");
+    if (st2) st2.innerHTML = '<span style="color:#e63946">' + m.msg + "</span>";
+    var btn = document.getElementById("btn-join");
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Unirse'; }
+  }
+}
+
+// ── PEER: MANEJO DE CONEXIONES (producción) ──────────────────────────────
 
 function handleDC(cn) {
   var pid = cn._pid;
@@ -185,6 +319,14 @@ function handleCM(msg, cn) {
     if (typeof msg.pid !== "number" || msg.pid !== senderPid) return;
     processAction(msg.action, msg.pid, msg.data);
   }
+}
+
+function updateConnectionStatus(status, text) {
+  var el = document.getElementById("connection-status");
+  var txt = document.getElementById("conn-text");
+  if (!el || !txt) return;
+  el.className = "connection-status" + (status !== "connected" ? " " + status : "");
+  txt.textContent = text;
 }
 
 function renderHPL() {
@@ -276,7 +418,9 @@ function broadcastState() {
 }
 
 function sendToHost(m) {
-  if (hostConn && hostConn.open) {
+  if (netTransport === "ws" || netTransport === "bc") {
+    localSend({ kind: "action", pid: myId, msg: m });
+  } else if (hostConn && hostConn.open) {
     try { hostConn.send(m); } catch (e) {}
   }
 }
@@ -373,5 +517,11 @@ function clientDetectChanges(prev, curr) {
 // ── LIMPIEZA ─────────────────────────────────────────────────────────────
 
 window.addEventListener("beforeunload", function () {
+  if (netTransport === "ws") {
+    try { wsSocket.send(JSON.stringify({ room: roomCode, data: { kind: "leave", pid: myId } })); } catch (e) {}
+    try { wsSocket.close(); } catch (e) {}
+  } else if (netTransport === "bc") {
+    try { bcChannel.postMessage({ kind: "leave", pid: myId }); bcChannel.close(); } catch (e) {}
+  }
   if (peer) peer.destroy();
 });
