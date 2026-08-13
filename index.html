@@ -12,24 +12,24 @@
 </head>
 <body>
 
-<div id="lobby">
+<div id="lobby" role="main" aria-label="Lobby del juego">
 <div class="lobby-card">
 <h1 class="fredoka" style="margin-bottom:4px">GENEROSOPOLY</h1>
 <p style="text-align:center;color:var(--muted);margin-bottom:24px;font-size:14px">El Juego de la Generosidad · Beth Shalom</p>
-<div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:20px">
-<button class="tab-btn active" onclick="switchTab('create',this)">Crear Sala</button>
-<button class="tab-btn" onclick="switchTab('join',this)">Unirse</button>
+<div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:20px" role="tablist">
+<button class="tab-btn active" onclick="switchTab('create',this)" role="tab" aria-selected="true" aria-controls="tab-create" id="tab-btn-create">Crear Sala</button>
+<button class="tab-btn" onclick="switchTab('join',this)" role="tab" aria-selected="false" aria-controls="tab-join" id="tab-btn-join">Unirse</button>
 </div>
-<div id="tab-create">
-<div style="margin-bottom:12px"><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Tu nombre</label><input class="input-field" id="host-name" placeholder="Ej: Maria" maxlength="12"></div>
-<div style="margin-bottom:12px"><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Condición de fin</label>
-<select class="input-field" id="end-cond">
+<div id="tab-create" role="tabpanel" aria-labelledby="tab-btn-create">
+<div style="margin-bottom:12px"><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px" for="host-name">Tu nombre</label><input class="input-field" id="host-name" placeholder="Ej: Maria" maxlength="12" aria-required="true"></div>
+<div style="margin-bottom:12px"><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px" for="end-cond">Condición de fin</label>
+<select class="input-field" id="end-cond" aria-label="Condición de fin del juego">
 <option value="timer-20">Tiempo: 20 minutos</option>
 <option value="timer-30" selected>Tiempo: 30 minutos</option>
 <option value="laps-3">Vueltas: 3 por jugador</option>
 <option value="laps-5">Vueltas: 5 por jugador</option>
 </select></div>
-<button class="btn btn-primary" style="width:100%" onclick="createRoom()" id="btn-create"><i class="fas fa-plus"></i> Crear Sala</button>
+<button class="btn btn-primary" style="width:100%" onclick="createRoom()" id="btn-create" aria-label="Crear sala"><i class="fas fa-plus"></i> Crear Sala</button>
 <div id="room-info" style="display:none;margin-top:20px;text-align:center">
 <p style="font-size:12px;color:var(--muted);margin-bottom:8px">Código de sala:</p>
 <div class="room-code" id="room-code-display"></div>
@@ -37,26 +37,29 @@
 <button class="btn btn-success" style="width:100%;margin-top:16px" onclick="startGame()" id="btn-start" disabled><i class="fas fa-play"></i> Iniciar Juego (mín. 2)</button>
 </div>
 </div>
-<div id="tab-join" style="display:none">
-<div style="margin-bottom:12px"><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Tu nombre</label><input class="input-field" id="join-name" placeholder="Ej: Carlos" maxlength="12"></div>
-<div style="margin-bottom:12px"><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Código de sala</label><input class="input-field" id="join-code" placeholder="Ej: AB3K" maxlength="6" style="text-transform:uppercase;letter-spacing:4px;font-weight:700;font-size:18px;text-align:center"></div>
-<button class="btn btn-primary" style="width:100%" onclick="joinRoom()" id="btn-join"><i class="fas fa-sign-in-alt"></i> Unirse</button>
+<div id="tab-join" style="display:none" role="tabpanel" aria-labelledby="tab-btn-join">
+<div style="margin-bottom:12px"><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px" for="join-name">Tu nombre</label><input class="input-field" id="join-name" placeholder="Ej: Carlos" maxlength="12" aria-required="true"></div>
+<div style="margin-bottom:12px"><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px" for="join-code">Código de sala</label><input class="input-field" id="join-code" placeholder="Ej: AB3K" maxlength="6" style="text-transform:uppercase;letter-spacing:4px;font-weight:700;font-size:18px;text-align:center" aria-required="true" aria-describedby="join-code-help"></div>
+<button class="btn btn-primary" style="width:100%" onclick="joinRoom()" id="btn-join" aria-label="Unirse a sala"><i class="fas fa-sign-in-alt"></i> Unirse</button>
 <div id="join-status" style="margin-top:12px;text-align:center;font-size:13px;color:var(--muted)"></div>
 </div>
 </div>
 </div>
 
-<div id="game">
+<div id="game" role="application" aria-label="Tablero del juego">
 <div id="board-wrap">
-<button id="rules-side-btn" onclick="showRules()"><i class="fas fa-book"></i></button>
-<div id="board"></div>
+<button id="rules-side-btn" onclick="showRules()" aria-label="Ver reglas"><i class="fas fa-book"></i></button>
+<div id="connection-status" class="connection-status" role="status" aria-live="polite">
+<i class="fas fa-wifi"></i> <span id="conn-text">Conectado</span>
 </div>
-<div id="sidebar">
-<div class="sb-section" id="sb-timer" style="display:none"><div class="timer-display" id="timer-text">30:00</div></div>
-<div class="sb-section"><h3><i class="fas fa-hand-pointer"></i> Acción</h3><div id="action-content"><div class="waiting-msg"><i class="fas fa-hourglass-half"></i>Espere su turno...</div></div></div>
-<div class="sb-section"><h3><i class="fas fa-users"></i> Jugadores</h3><div id="players-list"></div></div>
-<div class="sb-section"><h3><i class="fas fa-hand-holding-heart"></i> Fondo Comunitario</h3><div style="text-align:center;font-size:20px;font-weight:700;color:var(--accent);font-family:'Fredoka',sans-serif" id="fund-display">$0</div></div>
-<div id="log"></div>
+<div id="board" role="img" aria-label="Tablero de juego"></div>
+</div>
+<div id="sidebar" role="complementary" aria-label="Panel de información">
+<div class="sb-section" id="sb-timer" style="display:none" aria-label="Temporizador"><div class="timer-display" id="timer-text" aria-live="off">30:00</div></div>
+<div class="sb-section" aria-label="Acciones"><h3><i class="fas fa-hand-pointer"></i> Acción</h3><div id="action-content" aria-live="polite"><div class="waiting-msg"><i class="fas fa-hourglass-half"></i>Espere su turno...</div></div></div>
+<div class="sb-section" aria-label="Jugadores"><h3><i class="fas fa-users"></i> Jugadores</h3><div id="players-list" role="list"></div></div>
+<div class="sb-section" aria-label="Fondo Comunitario"><h3><i class="fas fa-hand-holding-heart"></i> Fondo Comunitario</h3><div style="text-align:center;font-size:20px;font-weight:700;color:var(--accent);font-family:'Fredoka',sans-serif" id="fund-display" aria-live="polite">$0</div></div>
+<div id="log" role="log" aria-label="Registro de eventos" aria-live="polite"></div>
 </div>
 </div>
 

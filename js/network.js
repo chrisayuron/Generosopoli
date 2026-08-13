@@ -1,3 +1,16 @@
+// ── UTILIDADES DE SEGURIDAD ──────────────────────────────────────────────
+
+function sanitize(str) {
+  var div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function sanitizeName(name) {
+  if (typeof name !== "string") return "Jugador";
+  return sanitize(name.trim().substring(0, 12)) || "Jugador";
+}
+
 // ── PEER.JS - CONFIGURACIÓN ──────────────────────────────────────────────
 
 function setupPeer(id) {
@@ -21,8 +34,9 @@ function setupPeer(id) {
 // ── CREAR SALA ───────────────────────────────────────────────────────────
 
 window.createRoom = async function () {
-  var name = document.getElementById("host-name").value.trim();
-  if (!name) return showToast("Ingresa tu nombre");
+  var rawName = document.getElementById("host-name").value.trim();
+  if (!rawName) return showToast("Ingresa tu nombre");
+  var name = sanitizeName(rawName);
   var btn = document.getElementById("btn-create");
   btn.disabled = true;
   btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creando...';
@@ -57,10 +71,11 @@ window.createRoom = async function () {
 // ── UNIRSE A SALA ────────────────────────────────────────────────────────
 
 window.joinRoom = async function () {
-  var name = document.getElementById("join-name").value.trim();
+  var rawName = document.getElementById("join-name").value.trim();
   var code = document.getElementById("join-code").value.trim().toUpperCase();
-  if (!name) return showToast("Ingresa tu nombre");
+  if (!rawName) return showToast("Ingresa tu nombre");
   if (!code) return showToast("Ingresa el código");
+  var name = sanitizeName(rawName);
   var btn = document.getElementById("btn-join");
   btn.disabled = true;
   btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Conectando...';
@@ -105,14 +120,23 @@ window.joinRoom = async function () {
 
 // ── MANEJO DE CONEXIONES ─────────────────────────────────────────────────
 
+function updateConnectionStatus(status, text) {
+  var el = document.getElementById("connection-status");
+  var txt = document.getElementById("conn-text");
+  if (!el || !txt) return;
+  el.className = "connection-status" + (status !== "connected" ? " " + status : "");
+  txt.textContent = text;
+}
+
 function handleDC(cn) {
-  var pid = connReverseMap.get(cn);
+  var pid = connReverseMap[cn.__peerId];
   if (pid !== undefined) {
     delete connMap[pid];
-    connReverseMap.delete(cn);
+    delete connReverseMap[cn.__peerId];
     if (G.players[pid]) {
       G.players[pid].eliminated = true;
       addLog(G.players[pid].name + " desconectado.", true);
+      updateConnectionStatus("disconnected", "Jugador desconectado");
       if (G.phase === "playing" && G.currentPlayer === pid) endTurn();
       syncNow();
     }
@@ -126,19 +150,25 @@ function handleCM(msg, cn) {
       cn.send({ type: "error", msg: "Sala llena (máximo 4 jugadores)" });
       return;
     }
+    var safeName = sanitizeName(msg.name);
     G.players.push({
-      id: pid, name: msg.name, color: PC[pid], money: INIT_MONEY,
+      id: pid, name: safeName, color: PC[pid], money: INIT_MONEY,
       position: 0, inJail: false, jailTurns: 0,
       properties: [], eliminated: false, laps: 0
     });
     connMap[pid] = cn;
-    connReverseMap.set(cn, pid);
+    connReverseMap[cn.__peerId] = pid;
     cn.send({ type: "assigned", pid: pid, color: PC[pid] });
-    addLog(msg.name + " se unió.", true);
+    addLog(safeName + " se unió.", true);
     renderHPL();
     syncNow();
   }
-  if (msg.type === "action") processAction(msg.action, msg.pid, msg.data);
+  if (msg.type === "action") {
+    var senderPid = connReverseMap[cn.__peerId];
+    if (senderPid === undefined) return;
+    if (typeof msg.pid !== "number" || msg.pid !== senderPid) return;
+    processAction(msg.action, msg.pid, msg.data);
+  }
 }
 
 function renderHPL() {
@@ -213,8 +243,14 @@ window.startGame = function () {
 
 // ── BROADCAST Y RECEPCIÓN DE ESTADO ──────────────────────────────────────
 
+var lastBroadcastState = null;
+
 function broadcastState() {
-  var s = getSS(), k = Object.keys(connMap);
+  var s = getSS();
+  var sStr = JSON.stringify(s);
+  if (sStr === lastBroadcastState) return;
+  lastBroadcastState = sStr;
+  var k = Object.keys(connMap);
   for (var i = 0; i < k.length; i++) {
     var c = connMap[k[i]];
     if (c && c.open) {
@@ -238,6 +274,7 @@ function applyState(d) {
   G.players = d.players;
   G.properties = d.properties;
   G.volunteers = d.volunteers || {};
+  G.mortgaged = d.mortgaged || {};
   G.communityFund = d.communityFund;
   G.currentPlayer = d.currentPlayer;
   G.turnPhase = d.turnPhase;

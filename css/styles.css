@@ -7,7 +7,7 @@
   --accent: #d4a017;
   --card: #1e3520;
   --border: #2a4a2d;
-  --muted: #7a9a7e;
+  --muted: #9ab89e;
 }
 
 * {
@@ -443,6 +443,10 @@ h1, h2, h3, .fredoka {
   filter: saturate(.55) brightness(.92);
 }
 
+.space.property.owned.mortgaged-space {
+  filter: saturate(0) brightness(.7);
+}
+
 .space.property.owned .sn,
 .space.property.owned .sp {
   opacity: .7;
@@ -585,6 +589,33 @@ h1, h2, h3, .fredoka {
 .prop-item .pi-buy-vol:disabled {
   opacity: .35;
   cursor: not-allowed;
+}
+
+.prop-item .pi-mortgage {
+  background: rgba(212, 160, 23, .12);
+  border: 1px solid rgba(212, 160, 23, .3);
+  color: var(--accent);
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.prop-item .pi-mortgage:hover {
+  background: rgba(212, 160, 23, .25);
+}
+
+.prop-item.mortgaged {
+  opacity: .6;
+  border-style: dashed;
+}
+
+.prop-item.mortgaged .pi-name {
+  text-decoration: line-through;
+  text-decoration-color: #e63946;
 }
 
 .props-mini {
@@ -889,6 +920,23 @@ h1, h2, h3, .fredoka {
   font-weight: 700;
   color: var(--accent);
   text-align: center;
+  padding: 8px 16px;
+  background: rgba(212, 160, 23, .1);
+  border: 1px solid rgba(212, 160, 23, .3);
+  border-radius: 10px;
+  margin-bottom: 8px;
+}
+
+.timer-display.urgent {
+  color: #e63946;
+  border-color: rgba(230, 57, 70, .3);
+  background: rgba(230, 57, 70, .1);
+  animation: timerPulse 1s infinite;
+}
+
+@keyframes timerPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .7; }
 }
 
 /* ── TOAST ──────────────────────────────────────────────────────────────── */
@@ -1034,6 +1082,36 @@ h1, h2, h3, .fredoka {
 
 #rules-side-btn:hover {
   background: rgba(255, 255, 255, .15);
+  color: var(--accent);
+}
+
+.connection-status {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(39, 174, 96, .15);
+  border: 1px solid rgba(39, 174, 96, .3);
+  color: #27ae60;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: .3s;
+}
+
+.connection-status.disconnected {
+  background: rgba(230, 57, 70, .15);
+  border-color: rgba(230, 57, 70, .3);
+  color: #e63946;
+}
+
+.connection-status.reconnecting {
+  background: rgba(212, 160, 23, .15);
+  border-color: rgba(212, 160, 23, .3);
   color: var(--accent);
 }
 

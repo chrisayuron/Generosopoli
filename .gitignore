@@ -1,0 +1,23 @@
+# Development
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Test files
+test.html
+
+# Git
+.git/
+.gitignore
+
+# Misc
+*.log
+*.tmp
+*.bak

@@ -113,16 +113,23 @@ function renderPropertyOwnership() {
     var badge = document.getElementById("owner-" + i);
     var ownerId = G.properties[i];
     var owner = (ownerId !== undefined && ownerId !== null) ? G.players[ownerId] : null;
+    var isMortgaged = !!G.mortgaged[i];
     if (owner && !owner.eliminated) {
       el.classList.add("owned");
+      if (isMortgaged) {
+        el.classList.add("mortgaged-space");
+      } else {
+        el.classList.remove("mortgaged-space");
+      }
       if (badge) {
         badge.style.display = "flex";
-        badge.style.background = owner.color;
-        badge.textContent = owner.name[0].toUpperCase();
-        badge.title = owner.name + " es dueño/a de esta propiedad";
+        badge.style.background = isMortgaged ? "#666" : owner.color;
+        badge.textContent = isMortgaged ? "$" : owner.name[0].toUpperCase();
+        badge.title = isMortgaged ? "Hipotecada por " + owner.name : owner.name + " es dueño/a de esta propiedad";
       }
     } else {
       el.classList.remove("owned");
+      el.classList.remove("mortgaged-space");
       if (badge) { badge.style.display = "none"; badge.textContent = ""; }
     }
   }
@@ -155,20 +162,30 @@ function renderTokens() {
   }
 }
 
+var renderFlags = {
+  tokens: true, ownership: true, players: true,
+  action: true, fund: true, log: true, vols: true
+};
+
+function markRender(dirty) {
+  for (var k in dirty) renderFlags[k] = dirty[k];
+}
+
 function renderAll() {
-  renderDiceFaces();
-  renderTokens();
-  renderPropertyOwnership();
-  renderPlayers();
-  renderAction();
-  renderFund();
+  if (renderFlags.tokens) renderTokens();
+  if (renderFlags.ownership) renderPropertyOwnership();
+  if (renderFlags.players) renderPlayers();
+  if (renderFlags.action) renderAction();
+  if (renderFlags.fund) renderFund();
+  if (renderFlags.vols) renderVols();
   renderLog();
-  renderVols();
+  renderDiceFaces();
   checkPendingCard();
   checkPendingReflection();
   checkPendingTrade();
   processToasts();
   if (G.endCondition.startsWith("timer") && G.phase === "playing") renderTimer();
+  renderFlags = { tokens: false, ownership: false, players: false, action: false, fund: false, log: false, vols: false };
 }
 
 function renderVols() {
@@ -215,12 +232,18 @@ function renderFund() {
 }
 
 function renderLog() {
-  var el = document.getElementById("log"), h = "";
-  for (var i = 0; i < G.log.length; i++) {
-    h += '<div class="log-entry' + (G.log[i].imp ? " important" : "") + '">' + G.log[i].msg + "</div>";
+  var el = document.getElementById("log");
+  var prevLen = el.children.length;
+  var newLen = G.log.length;
+  if (newLen > prevLen) {
+    for (var i = prevLen; i < newLen; i++) {
+      var div = document.createElement("div");
+      div.className = "log-entry" + (G.log[i].imp ? " important" : "");
+      div.textContent = G.log[i].msg;
+      el.appendChild(div);
+    }
+    el.scrollTop = el.scrollHeight;
   }
-  el.innerHTML = h;
-  el.scrollTop = el.scrollHeight;
 }
 
 function renderDie(el, v) {
@@ -237,16 +260,34 @@ function renderTimer() {
   var m = Math.floor(G.timeRemaining / 60), s = G.timeRemaining % 60;
   var el = document.getElementById("timer-text");
   el.textContent = m + ":" + (s < 10 ? "0" : "") + s;
-  el.style.color = G.timeRemaining <= 60 ? "#e63946" : "var(--accent)";
+  if (G.timeRemaining <= 60) {
+    el.classList.add("urgent");
+  } else {
+    el.classList.remove("urgent");
+  }
 }
 
-function renderDiceFaces() {}
+function renderDiceFaces() {
+  var diceArea = document.querySelector(".dice-area");
+  if (!diceArea) return;
+  var existing = diceArea.querySelectorAll(".die");
+  if (existing.length === 2) {
+    renderDie(existing[0], G.dice[0] || 1);
+    renderDie(existing[1], G.dice[1] || 1);
+  }
+}
 
 // ── PANEL DE ACCIONES ────────────────────────────────────────────────────
 
 function renderAction() {
   var el = document.getElementById("action-content"), p = G.players[G.currentPlayer];
   if (!p || p.eliminated) { el.innerHTML = '<div class="waiting-msg">Jugador eliminado</div>'; return; }
+
+  if (G.turnPhase === "auction") {
+    el.innerHTML = renderAucUI();
+    return;
+  }
+
   if (G.currentPlayer !== myId || processing) {
     el.innerHTML = '<div class="waiting-msg"><i class="fas fa-hourglass-half"></i> Turno de ' + p.name + (p.inJail ? " 🔒" : "") + "</div>";
     return;
@@ -281,25 +322,30 @@ function renderAction() {
       '<button class="btn btn-primary" onclick="doAction(\'continue\')"><i class="fas fa-forward"></i> Continuar</button>' +
       '<button class="btn btn-secondary" onclick="showPropPanel(' + myId + ')" style="font-size:12px"><i class="fas fa-city"></i> Mis proyectos</button>' +
       '</div>';
-  } else if (G.turnPhase === "auction") {
-    h = renderAucUI();
   }
   el.innerHTML = h;
 }
 
 function renderAucUI() {
   if (!G.auction) return "";
-  var a = G.auction, sp = BOARD[a.propertyId], myPassed = a.passed.indexOf(myId) !== -1;
+  var a = G.auction, sp = BOARD[a.propertyId];
+  if (!sp) return "";
+  var myPassed = a.passed.indexOf(myId) !== -1;
+  var canBid = !myPassed && G.players[myId] && !G.players[myId].eliminated && G.players[myId].money >= a.currentBid + 10;
   var h = '<div style="font-size:13px;margin-bottom:6px"><i class="fas fa-gavel" style="color:var(--accent)"></i> <strong>Subasta: ' + sp.name + "</strong></div>" +
     '<div class="auction-bid">Puja: <span>$' + a.currentBid + "</span></div>" +
-    '<div style="font-size:12px;color:var(--muted);margin-bottom:8px">' + (a.currentBidder >= 0 ? "Mayor postor: " + G.players[a.currentBidder].name : "Nadie ha pujado") + "</div>";
-  if (!myPassed) {
+    '<div style="font-size:12px;color:var(--muted);margin-bottom:8px">' +
+    (a.currentBidder >= 0 ? "Mayor postor: " + G.players[a.currentBidder].name : "Nadie ha pujado") +
+    " · Tiempo restante activo</div>";
+  if (myPassed) {
+    h += '<div style="font-size:12px;color:var(--muted)"><i class="fas fa-check"></i> Has pasado. Esperando a los demás...</div>';
+  } else if (!canBid) {
+    h += '<div style="font-size:12px;color:#e63946"><i class="fas fa-coins"></i> Sin fondos suficientes para pujar</div>';
+  } else {
     h += '<div class="action-btns">' +
       '<button class="btn btn-primary" onclick="doAction(\'auction_bid\')"><i class="fas fa-arrow-up"></i> Pujar $' + (a.currentBid + 10) + '</button>' +
       '<button class="btn btn-secondary" onclick="doAction(\'auction_pass\')"><i class="fas fa-times"></i> Pasar</button>' +
       '</div>';
-  } else {
-    h += '<div style="font-size:12px;color:var(--muted)"><i class="fas fa-check"></i> Has pasado. Esperando a los demás...</div>';
   }
   return h;
 }
@@ -335,26 +381,27 @@ window.showPropPanel = function (pid) {
       h += '<div style="font-size:11px;font-weight:700;color:' + GC[grp] + ';text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;padding:3px 8px;background:' + GC[grp] + '22;border-radius:4px;display:inline-block">Grupo ' + String.fromCharCode(65 + grp) + '</div>';
       for (var s = 0; s < sids.length; s++) {
         var sid2 = sids[s], sp2 = BOARD[sid2];
-        var lv = G.volunteers[sid2] || 0;
+        var isMortgaged = !!G.mortgaged[sid2];
+        var lv = isMortgaged ? 0 : (G.volunteers[sid2] || 0);
         var apt = getAporte(sid2);
-        var canV = canBuyVol(pid, sid2);
+        var canV = !isMortgaged && canBuyVol(pid, sid2);
         var vcost = volCostLabel(sid2);
         var vnext = volNextLabel(sid2);
         var pips = "";
         for (var v = 0; v < Math.min(lv, 4); v++) pips += '<div class="vp"></div>';
         if (lv >= 5) pips = '<div class="vp ong">&#9733;</div>';
-        h += '<div class="prop-item">';
-        h += '<div class="pi-color" style="background:' + GC[grp] + '"></div>';
+        h += '<div class="prop-item' + (isMortgaged ? ' mortgaged' : '') + '">';
+        h += '<div class="pi-color" style="background:' + (isMortgaged ? '#666' : GC[grp]) + '"></div>';
         h += '<div style="flex:1;min-width:0">';
-        h += '<div class="pi-name">' + sp2.name + '</div>';
-        h += '<div class="pi-price">Aporte actual: <strong style="color:var(--accent)">$' + apt + '</strong>';
-        if (lv > 0) h += ' · ' + (lv < 5 ? lv + " voluntario" + (lv > 1 ? "s" : "") : ' ONG &#9733;');
+        h += '<div class="pi-name">' + sp2.name + (isMortgaged ? ' <span style="color:#e63946;font-size:10px">HIPOTECADA</span>' : '') + '</div>';
+        h += '<div class="pi-price">Aporte actual: <strong style="color:' + (isMortgaged ? '#666' : 'var(--accent)') + '">$' + apt + '</strong>';
+        if (!isMortgaged && lv > 0) h += ' · ' + (lv < 5 ? lv + " voluntario" + (lv > 1 ? "s" : "") : ' ONG &#9733;');
         h += '</div></div>';
         h += '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">';
-        h += '<div class="pi-vols">' + pips + '</div>';
-        if (isMe && canV) {
+        if (!isMortgaged) h += '<div class="pi-vols">' + pips + '</div>';
+        if (isMe && !isMortgaged && canV) {
           h += '<button class="pi-buy-vol" onclick="buyVolAction(' + sid2 + ')">+' + vnext + ' ($' + vcost + ')</button>';
-        } else if (isMe && !canV && lv < 5) {
+        } else if (isMe && !isMortgaged && !canV && lv < 5) {
           var grpSpaces2 = [];
           for (var bi = 0; bi < BOARD.length; bi++) {
             if (BOARD[bi].type === "property" && BOARD[bi].group === grp) grpSpaces2.push(bi);
@@ -367,7 +414,14 @@ window.showPropPanel = function (pid) {
           h += '<button class="pi-buy-vol" disabled>' + reason + '</button>';
         }
         if (isSelf) {
-          h += '<button class="pi-sell" onclick="openSellModal(' + sid2 + ')">Vender</button>';
+          if (isMortgaged) {
+            var unmortgageCost = Math.floor(sp2.price / 2 * 1.1);
+            h += '<button class="pi-buy-vol" onclick="unmortgageAction(' + sid2 + ')"' + (p.money < unmortgageCost ? ' disabled title="Sin fondos"' : '') + '>Deshipotecar ($' + unmortgageCost + ')</button>';
+          } else {
+            h += '<button class="pi-sell" onclick="openSellModal(' + sid2 + ')">Vender</button>';
+            h += '<button class="pi-mortgage" onclick="mortgageAction(' + sid2 + ')">Hipotecar ($' + Math.floor(sp2.price / 2) + ')</button>';
+          }
+        }
         }
         h += '</div>';
         h += '</div>';
@@ -376,6 +430,9 @@ window.showPropPanel = function (pid) {
     }
   }
   h += '<button class="btn btn-secondary" onclick="closePropPanel()" style="width:100%;margin-top:8px"><i class="fas fa-times"></i> Cerrar</button>';
+  if (isSelf && p.properties.length > 0) {
+    h += '<button class="btn btn-danger" onclick="declareBankruptcyAction()" style="width:100%;margin-top:8px;font-size:12px"><i class="fas fa-exclamation-triangle"></i> Declararse en Bancarrota</button>';
+  }
   h += '</div></div>';
   document.body.insertAdjacentHTML("beforeend", h);
 };
@@ -424,17 +481,81 @@ window.offerPropToPlayer = function (spaceId, toPid) {
 };
 
 window.sellPropAction = function (spaceId, name) {
-  if (!confirm('¿Vender "' + name + '" al Fondo Común por la mitad de su precio? Se perderán las mejoras (voluntarios) que tenga.')) return;
+  var sp = BOARD[spaceId];
+  if (!sp) return;
+  var refund = Math.floor(sp.price / 2);
+  var confirmed = confirm(
+    '¿Vender "' + name + '" al Fondo Común por $' + refund + '?' +
+    '\n\nSe perderán las mejoras (voluntarios) que tenga.' +
+    '\n\nEsta acción no se puede deshacer.'
+  );
+  if (!confirmed) return;
   closeModal();
   if (!isHost) sendToHost({ type: "action", action: "sell_prop", pid: myId, data: { spaceId: spaceId } });
   else processAction("sell_prop", myId, { spaceId: spaceId });
+};
+
+window.mortgageAction = function (spaceId) {
+  var sp = BOARD[spaceId];
+  if (!sp) return;
+  var value = Math.floor(sp.price / 2);
+  var confirmed = confirm(
+    '¿Hipotecar "' + sp.name + '" por $' + value + '?' +
+    '\n\nNo cobrarás aportes mientras esté hipotecada.' +
+    '\n\nPara deshipotecar deberás pagar $' + Math.floor(sp.price / 2 * 1.1) + '.'
+  );
+  if (!confirmed) return;
+  closePropPanel();
+  if (!isHost) sendToHost({ type: "action", action: "mortgage_prop", pid: myId, data: { spaceId: spaceId } });
+  else processAction("mortgage_prop", myId, { spaceId: spaceId });
+};
+
+window.unmortgageAction = function (spaceId) {
+  var sp = BOARD[spaceId];
+  if (!sp) return;
+  var cost = Math.floor(sp.price / 2 * 1.1);
+  var p = G.players[myId];
+  if (p.money < cost) {
+    showToast("No tienes fondos suficientes ($" + cost + ")");
+    return;
+  }
+  var confirmed = confirm(
+    '¿Deshipotecar "' + sp.name + '" por $' + cost + '?' +
+    '\n\nVolverás a cobrar aportes por esta propiedad.'
+  );
+  if (!confirmed) return;
+  closePropPanel();
+  if (!isHost) sendToHost({ type: "action", action: "unmortgage_prop", pid: myId, data: { spaceId: spaceId } });
+  else processAction("unmortgage_prop", myId, { spaceId: spaceId });
+};
+
+window.declareBankruptcyAction = function () {
+  var p = G.players[myId];
+  if (!p) return;
+  var totalProps = p.properties.length;
+  var mortgagedCount = 0;
+  for (var i = 0; i < p.properties.length; i++) {
+    if (G.mortgaged[p.properties[i]]) mortgagedCount++;
+  }
+  var confirmed = confirm(
+    '¿Declararse en Bancarrota?' +
+    '\n\nSe venderán todas tus propiedades (' + totalProps + ' total, ' + mortgagedCount + ' hipotecadas) al Fondo Común.' +
+    '\n\nRecibirás el dinero de las ventas.' +
+    '\n\nSi quedas sin dinero, serás eliminado del juego.' +
+    '\n\nEsta acción no se puede deshacer.'
+  );
+  if (!confirmed) return;
+  closePropPanel();
+  if (!isHost) sendToHost({ type: "action", action: "declare_bankruptcy", pid: myId });
+  else processAction("declare_bankruptcy", myId);
 };
 
 // ── MODALES ──────────────────────────────────────────────────────────────
 
 window.doAction = function (a, d) {
   var bypass = (a === "sell_prop" || a === "offer_prop" || a === "accept_trade" ||
-    a === "reject_trade" || a === "cancel_trade" || a === "auction_bid" || a === "auction_pass");
+    a === "reject_trade" || a === "cancel_trade" || a === "auction_bid" || a === "auction_pass" ||
+    a === "mortgage_prop" || a === "unmortgage_prop" || a === "declare_bankruptcy");
   if (processing && !bypass) return;
   if (!isHost) sendToHost({ type: "action", action: a, pid: myId, data: d });
   else processAction(a, myId, d);
@@ -686,8 +807,36 @@ window.showRules = showRulesModal;
 
 window.switchTab = function (t, el) {
   var bs = document.querySelectorAll(".tab-btn");
-  for (var i = 0; i < bs.length; i++) bs[i].classList.remove("active");
+  for (var i = 0; i < bs.length; i++) {
+    bs[i].classList.remove("active");
+    bs[i].setAttribute("aria-selected", "false");
+  }
   el.classList.add("active");
+  el.setAttribute("aria-selected", "true");
   document.getElementById("tab-create").style.display = t === "create" ? "block" : "none";
   document.getElementById("tab-join").style.display = t === "join" ? "block" : "none";
 };
+
+document.addEventListener("keydown", function (e) {
+  if (e.key === "Escape") {
+    var modal = document.getElementById("modal");
+    if (modal && modal.classList.contains("active")) {
+      closeModal();
+      return;
+    }
+    var propPanel = document.getElementById("prop-panel");
+    if (propPanel) {
+      closePropPanel();
+      return;
+    }
+  }
+  if (e.key === "Enter" && G.phase === "playing" && G.currentPlayer === myId) {
+    if (G.turnPhase === "roll" && !G.players[myId].inJail) {
+      var rollBtn = document.querySelector('[onclick="doAction(\'roll\')"]');
+      if (rollBtn && document.activeElement === rollBtn) {
+        e.preventDefault();
+        doAction("roll");
+      }
+    }
+  }
+});

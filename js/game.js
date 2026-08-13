@@ -4,6 +4,7 @@ var G = {
   players: [],
   properties: {},
   volunteers: {},
+  mortgaged: {},
   communityFund: 0,
   currentPlayer: 0,
   turnPhase: "roll",
@@ -37,7 +38,7 @@ var localSnap = {
 };
 
 var myId = -1, isHost = false, peer = null, hostConn = null;
-var roomCode = "", connMap = {}, connReverseMap = new WeakMap();
+var roomCode = "", connMap = {}, connReverseMap = {};
 var processing = false;
 
 // ── UTILIDADES ────────────────────────────────────────────────────────────
@@ -85,6 +86,7 @@ function processToasts() {
 
 function syncNow() {
   if (isHost) broadcastState();
+  markRender({ tokens: true, ownership: true, players: true, action: true, fund: true, log: true, vols: true });
   renderAll();
 }
 
@@ -113,10 +115,12 @@ function nextActive(f) {
 function getAporte(spaceId) {
   var sp = BOARD[spaceId];
   if (!sp || sp.type !== "property") return 0;
+  if (G.mortgaged[spaceId]) return 0;
   var lv = G.volunteers[spaceId] || 0;
   var table = VOL_APORTES[sp.group];
   if (!table) return sp.aporte;
-  return table[Math.min(lv, 5)];
+  var idx = Math.min(lv, table.length - 1);
+  return table[idx];
 }
 
 function canBuyVol(pid, spaceId) {
@@ -161,6 +165,7 @@ function getSS() {
     }),
     properties: JSON.parse(JSON.stringify(G.properties)),
     volunteers: JSON.parse(JSON.stringify(G.volunteers)),
+    mortgaged: JSON.parse(JSON.stringify(G.mortgaged)),
     communityFund: G.communityFund,
     currentPlayer: G.currentPlayer,
     turnPhase: G.turnPhase,
@@ -426,6 +431,89 @@ function sellProp(pid, spaceId) {
   syncNow();
 }
 
+// ── HIPOTECAS ──────────────────────────────────────────────────────────
+
+function mortgageProp(pid, spaceId) {
+  if (spaceId === undefined || spaceId === null) return;
+  spaceId = parseInt(spaceId);
+  if (G.properties[spaceId] !== pid) return;
+  if (G.mortgaged[spaceId]) return;
+  var sp = BOARD[spaceId], p = G.players[pid];
+  if (!sp || !p) return;
+  var value = Math.floor(sp.price / 2);
+  p.money += value;
+  G.mortgaged[spaceId] = true;
+  delete G.volunteers[spaceId];
+  addLog(p.name + ' hipoteca "' + sp.name + '" por $' + value, true, {
+    pid: pid, icon: "fa-university",
+    you: 'Hipotecaste "' + sp.name + '" por $' + value,
+    other: "{name} hipotecó \"" + sp.name + "\""
+  });
+  syncNow();
+}
+
+function unmortgageProp(pid, spaceId) {
+  if (spaceId === undefined || spaceId === null) return;
+  spaceId = parseInt(spaceId);
+  if (G.properties[spaceId] !== pid) return;
+  if (!G.mortgaged[spaceId]) return;
+  var sp = BOARD[spaceId], p = G.players[pid];
+  if (!sp || !p) return;
+  var cost = Math.floor(sp.price / 2 * 1.1);
+  if (p.money < cost) {
+    addLog(p.name + " no tiene fondos para deshipotecar ($" + cost + ").");
+    return;
+  }
+  p.money -= cost;
+  delete G.mortgaged[spaceId];
+  addLog(p.name + ' deshipoteca "' + sp.name + '" pagando $' + cost, true, {
+    pid: pid, icon: "fa-university",
+    you: 'Deshipotecaste "' + sp.name + '" por $' + cost,
+    other: "{name} deshipotecó \"" + sp.name + "\""
+  });
+  syncNow();
+}
+
+// ── BANCARROTA ─────────────────────────────────────────────────────────
+
+function declareBankruptcy(pid) {
+  var p = G.players[pid];
+  if (!p || p.eliminated) return;
+  var totalAssets = 0;
+  for (var i = 0; i < p.properties.length; i++) {
+    var sid = p.properties[i];
+    var sp = BOARD[sid];
+    if (!sp) continue;
+    if (G.mortgaged[sid]) {
+      var unmortgageCost = Math.floor(sp.price / 2 * 1.1);
+      totalAssets += unmortgageCost;
+    } else {
+      totalAssets += Math.floor(sp.price / 2);
+    }
+    delete G.properties[sid];
+    delete G.volunteers[sid];
+    delete G.mortgaged[sid];
+  }
+  p.properties = [];
+  p.money += totalAssets;
+  var debt = 0;
+  if (p.money < 0) {
+    debt = -p.money;
+    p.money = 0;
+  }
+  G.communityFund += debt;
+  addLog(p.name + " se declara en bancarrota. Vende propiedades por $" + totalAssets + (debt > 0 ? " y debe $" + debt + " al Fondo." : "."), true, {
+    pid: pid, icon: "fa-bankruptcy",
+    you: "Te declaraste en bancarrota. Recibiste $" + totalAssets + " por tus propiedades.",
+    other: "{name} se declaró en bancarrota"
+  });
+  if (p.money <= 0) {
+    elimP(pid);
+  } else {
+    syncNow();
+  }
+}
+
 function offerProp(fromPid, spaceId, toPid, price) {
   if (spaceId === undefined || spaceId === null || toPid === undefined || toPid === null) return;
   spaceId = parseInt(spaceId);
@@ -671,7 +759,7 @@ function applyC(card, pid) {
     var pd = 0;
     for (var j = 0; j < G.players.length; j++) {
       var o2 = G.players[j];
-      if (o2.id !== pid && !o2.eliminated) {
+      if (o2.id !== pid && !o2.eliminated && p.money > 0) {
         var a2 = Math.min(card.amount, p.money);
         if (a2 > 0) {
           o2.money += a2;
@@ -754,7 +842,7 @@ function startAuc(ppid) {
     propertyId: G.currentSpace,
     currentBid: Math.floor(sp.price / 2),
     currentBidder: -1,
-    passed: [],
+    passed: [ppid],
     timer: null
   };
   G.turnPhase = "auction";
@@ -945,6 +1033,12 @@ function processAction(a, pid, d) {
     buyVol(pid, d && d.spaceId);
   } else if (a === "sell_prop") {
     sellProp(pid, d && d.spaceId);
+  } else if (a === "mortgage_prop") {
+    mortgageProp(pid, d && d.spaceId);
+  } else if (a === "unmortgage_prop") {
+    unmortgageProp(pid, d && d.spaceId);
+  } else if (a === "declare_bankruptcy") {
+    declareBankruptcy(pid);
   } else if (a === "offer_prop") {
     offerProp(pid, d && d.spaceId, d && d.toPid, d && d.price);
   } else if (a === "accept_trade") {
