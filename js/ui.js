@@ -422,7 +422,6 @@ window.showPropPanel = function (pid) {
             h += '<button class="pi-mortgage" onclick="mortgageAction(' + sid2 + ')">Hipotecar ($' + Math.floor(sp2.price / 2) + ')</button>';
           }
         }
-        }
         h += '</div>';
         h += '</div>';
       }
